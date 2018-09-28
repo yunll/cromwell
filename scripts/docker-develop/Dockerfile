@@ -10,7 +10,7 @@ FROM openjdk:8u171
 #   Git
 
 # Env variables
-ENV SCALA_VERSION 2.12.6
+ENV SCALA_VERSION 2.12.7
 ENV SBT_VERSION 1.2.1
 
 # Scala expects this file
