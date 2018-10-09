@@ -1,6 +1,5 @@
 package languages.cwl
 
-import better.files.File
 import cats.data.EitherT.fromEither
 import cats.effect.IO
 import com.typesafe.config.Config
