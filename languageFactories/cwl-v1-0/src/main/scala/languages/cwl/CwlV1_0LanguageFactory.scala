@@ -5,6 +5,7 @@ import cats.Monad
 import cats.data.EitherT.fromEither
 import cats.effect.IO
 import com.typesafe.config.Config
+import com.typesafe.scalalogging.LazyLogging
 import common.Checked
 import common.validation.Checked._
 import common.validation.Parse.{Parse, errorOrParse, goParse, tryParse}
@@ -18,7 +19,7 @@ import wom.core.{WorkflowJson, WorkflowOptionsJson, WorkflowSource}
 import wom.executable.WomBundle
 import wom.expression.IoFunctionSet
 
-class CwlV1_0LanguageFactory(override val config: Config) extends LanguageFactory {
+class CwlV1_0LanguageFactory(override val config: Config) extends LanguageFactory with LazyLogging {
 
   override val languageName: String = "CWL"
   override val languageVersionName: String = "v1.0"
@@ -33,7 +34,9 @@ class CwlV1_0LanguageFactory(override val config: Config) extends LanguageFactor
     // TODO WOM: CwlDecoder takes a file so write it to disk for now
 
     def writeCwlFileToNewTempDir(): Parse[File] = {
+      logger.info(">>> in writeCwlFileToNewTempDir()")
       goParse {
+        logger.info(">>> in writeCwlFileToNewTempDir() / goParse")
         val tempDir = File.newTemporaryDirectory(prefix = s"$workflowIdForLogging.temp.")
         val cwlFile: File = tempDir./(s"$workflowIdForLogging.cwl").write(workflowSource)
         cwlFile
@@ -41,6 +44,7 @@ class CwlV1_0LanguageFactory(override val config: Config) extends LanguageFactor
     }
 
     def unzipDependencies(cwlFile: File): Parse[Unit] = {
+      logger.info(">>> in unzipDependencies")
       source match {
         case wsfwdz: WorkflowSourceFilesWithDependenciesZip =>
           for {
