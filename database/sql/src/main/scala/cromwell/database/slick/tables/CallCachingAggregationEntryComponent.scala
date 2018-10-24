@@ -32,10 +32,10 @@ trait CallCachingAggregationEntryComponent {
 
   val callCachingAggregationEntryIdsAutoInc = callCachingAggregationEntries returning
     callCachingAggregationEntries.map(_.callCachingAggregationEntryId)
-  
+
   val callCachingAggregationForCacheEntryId = Compiled(
     (callCachingEntryId: Rep[Int]) => for {
-      callCachingAggregationEntry <- callCachingAggregationEntries 
+      callCachingAggregationEntry <- callCachingAggregationEntries
       if callCachingAggregationEntry.callCachingEntryId === callCachingEntryId
     } yield callCachingAggregationEntry
   )
@@ -68,6 +68,20 @@ trait CallCachingAggregationEntryComponent {
         (detritusPath.substring(0, prefix2Length) === prefix2) ||
         (detritusPath.substring(0, prefix3Length) === prefix3)} yield ()).exists
   )
+
+  def existsCallCachingEntriesForBaseAggregationHashWithCallCachePrefixList(baseAggregation: Rep[String], prefixList: List[String]): Rep[Boolean] = {
+    (for {
+        callCachingEntry <- callCachingEntries
+        if callCachingEntry.allowResultReuse
+        callCachingAggregationEntry <- callCachingAggregationEntries
+        if callCachingEntry.callCachingEntryId === callCachingAggregationEntry.callCachingEntryId
+        if callCachingAggregationEntry.baseAggregation === baseAggregation
+        detritus <- callCachingDetritusEntries
+        if detritus.callCachingEntryId === callCachingEntry.callCachingEntryId
+        detritusPath = detritus.detritusValue.map { x => x.asColumnOf[String] }
+        if prefixList.map(prefix => detritusPath.substring(0, prefix.length) === prefix).reduce(_ || _)
+      } yield ()).exists
+  }
 
   def callCachingEntriesForAggregatedHashes(baseAggregation: Rep[String], inputFilesAggregation: Rep[Option[String]], number: Int) = {
     (for {
@@ -103,6 +117,26 @@ trait CallCachingAggregationEntryComponent {
       if (detritusPath.substring(0, prefix1Length) === prefix1) ||
         (detritusPath.substring(0, prefix2Length) === prefix2) ||
         (detritusPath.substring(0, prefix3Length) === prefix3)
+    } yield callCachingAggregationEntry.callCachingEntryId).drop(number - 1).take(1)
+  }
+
+  def callCachingEntriesForAggregatedHashesWithPrefixesList(baseAggregation: Rep[String], inputFilesAggregation: Rep[Option[String]],
+                                                            prefixList: List[String], number: Int) = {
+    (for {
+      callCachingEntry <- callCachingEntries
+      if callCachingEntry.allowResultReuse
+      callCachingAggregationEntry <- callCachingAggregationEntries
+      if callCachingEntry.callCachingEntryId === callCachingAggregationEntry.callCachingEntryId
+      if callCachingAggregationEntry.baseAggregation === baseAggregation
+      if (callCachingAggregationEntry.inputFilesAggregation.isEmpty && inputFilesAggregation.isEmpty) ||
+        (callCachingAggregationEntry.inputFilesAggregation === inputFilesAggregation)
+      detritus <- callCachingDetritusEntries
+      // Pick only one detritus file since this is not an existence check and we don't want to return one row
+      // for each of the (currently 6) types of standard detritus.
+      if detritus.detritusKey === "returnCode"
+      if detritus.callCachingEntryId === callCachingEntry.callCachingEntryId
+      detritusPath = detritus.detritusValue.map { x => x.asColumnOf[String] }
+      if prefixList.map(prefix => detritusPath.substring(0, prefix.length) === prefix).reduce(_ || _)
     } yield callCachingAggregationEntry.callCachingEntryId).drop(number - 1).take(1)
   }
 }
