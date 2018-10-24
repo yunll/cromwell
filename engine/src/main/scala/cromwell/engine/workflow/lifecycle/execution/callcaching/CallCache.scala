@@ -76,21 +76,25 @@ class CallCache(database: CallCachingSqlDatabase) {
   def hasBaseAggregatedHashMatch(baseAggregatedHash: String, hints: List[CacheHitHint])(implicit ec: ExecutionContext): Future[Boolean] = {
     val ccpp = hints collectFirst { case h: CallCachePathPrefixes => h.prefixes }
 
-    println(s"------------- FIND ME -------------")
-    println(s"Method: hasBaseAggregatedHashMatch")
-    println(s"baseAggregatedHash: $baseAggregatedHash")
-    println(s"hintsSize: ${ccpp.map(l => l.size)}")
-
     val start = System.currentTimeMillis
     val future = database.hasMatchingCallCachingEntriesForBaseAggregation(baseAggregatedHash, ccpp)
 
     future.onComplete {
       case Success(bool) => {
-        println(s"Time spent: ${(System.currentTimeMillis - start).millis}")
+        val totalTime = (System.currentTimeMillis - start).millis
+        println(s"------------- FIND ME -------------")
+        println(s"Method: hasBaseAggregatedHashMatch")
+        println(s"baseAggregatedHash: $baseAggregatedHash")
+        println(s"hintsSize: ${ccpp.map(l => l.size)}")
         println(s"Found match?: $bool")
+        println(s"*** Time spent: $totalTime")
         println(s"----------------------------------")
       }
-      case Failure(e) => println(s"Something went wrong! Error: ${e.getMessage}")
+      case Failure(e) => {
+        println(s"------------- FIND ME -------------")
+        println(s"Something went wrong! Error: ${e.getMessage}")
+        println(s"----------------------------------")
+      }
     }
 
     future
@@ -98,14 +102,6 @@ class CallCache(database: CallCachingSqlDatabase) {
 
   def callCachingHitForAggregatedHashes(aggregatedCallHashes: AggregatedCallHashes, prefixesHint: Option[CallCachePathPrefixes], hitNumber: Int)
                                        (implicit ec: ExecutionContext): Future[Option[CallCachingEntryId]] = {
-    println(s"------------- FIND ME -------------")
-    println(s"Method: callCachingHitForAggregatedHashes")
-    println(s"aggregatedCallHashes: $aggregatedCallHashes")
-    println(s"baseAggregationHash: ${aggregatedCallHashes.baseAggregatedHash}")
-    println(s"inputFilesAggregationHash: ${aggregatedCallHashes.inputFilesAggregatedHash}")
-    println(s"hintsSize: ${prefixesHint.map(_.prefixes).get.size}")
-    println(s"hitNumber: $hitNumber")
-
     val start = System.currentTimeMillis
 
     val future = database.findCacheHitForAggregation(
@@ -116,12 +112,23 @@ class CallCache(database: CallCachingSqlDatabase) {
 
     future.onComplete {
       case Success(idOption) => {
-        println(s"Time spent: ${(System.currentTimeMillis - start).millis}")
+        val totalTime = (System.currentTimeMillis - start).millis
+        println(s"------------- FIND ME -------------")
+        println(s"Method: callCachingHitForAggregatedHashes")
+        println(s"aggregatedCallHashes: $aggregatedCallHashes")
+        println(s"baseAggregationHash: ${aggregatedCallHashes.baseAggregatedHash}")
+        println(s"inputFilesAggregationHash: ${aggregatedCallHashes.inputFilesAggregatedHash}")
+        println(s"hintsSize: ${prefixesHint.map(_.prefixes).get.size}")
+        println(s"hitNumber: $hitNumber")
         idOption.foreach(id => println(s"CallCachingEntryId returned: $id"))
+        println(s"*** Time spent: $totalTime")
         println(s"----------------------------------")
-
       }
-      case Failure(e) => println(s"Something went wrong! Error: ${e.getMessage}")
+      case Failure(e) => {
+        println(s"------------- FIND ME -------------")
+        println(s"Something went wrong! Error: ${e.getMessage}")
+        println(s"----------------------------------")
+      }
     }
 
     future
