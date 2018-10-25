@@ -1,5 +1,7 @@
 package cromwell.engine.workflow.lifecycle.execution.callcaching
 
+import akka.actor.ActorRef
+import cats.data.NonEmptyList
 import common.util.StringUtil._
 import cromwell.backend.BackendJobDescriptorKey
 import cromwell.backend.BackendJobExecutionActor.{CallCached, JobFailedNonRetryableResponse, JobSucceededResponse}
@@ -16,7 +18,10 @@ import cromwell.database.sql.tables._
 import cromwell.engine.workflow.lifecycle.execution.callcaching.CallCache._
 import cromwell.engine.workflow.lifecycle.execution.callcaching.CallCacheReadActor.AggregatedCallHashes
 import cromwell.engine.workflow.lifecycle.execution.callcaching.EngineJobHashingActor.CallCacheHashes
+import cromwell.services.instrumentation.CromwellInstrumentation.InstrumentationPath
+import cromwell.services.instrumentation.CromwellInstrumentation
 import wom.core._
+
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -24,7 +29,11 @@ final case class CallCachingEntryId(id: Int)
 /**
   * Given a database-layer CallCacheStore, this accessor can access the database with engine-friendly data types.
   */
-class CallCache(database: CallCachingSqlDatabase) {
+class CallCache(database: CallCachingSqlDatabase, override val serviceRegistryActor: ActorRef) extends CromwellInstrumentation{
+  val hasHashMatchPath: InstrumentationPath = NonEmptyList.of("hasHashMatch")
+  val callCachingHitPath: InstrumentationPath = NonEmptyList.of("callCachingHit")
+
+
   def addToCache(bundles: Seq[CallCacheHashBundle], batchSize: Int)(implicit ec: ExecutionContext): Future[Unit] = {
     val joins = bundles map { b =>
       val metaInfo = CallCachingEntry(
@@ -80,6 +89,7 @@ class CallCache(database: CallCachingSqlDatabase) {
 
     future.map{bool =>
       val totalTime = (System.currentTimeMillis - start).millis
+      sendTiming(hasHashMatchPath, totalTime, Option("cc-prefix-query"))
       (bool, totalTime)
     }
 
@@ -135,6 +145,7 @@ class CallCache(database: CallCachingSqlDatabase) {
 
     future.map{ id =>
       val totalTime = (System.currentTimeMillis - start).millis
+      sendTiming(callCachingHitPath, totalTime, Option("cc-prefix-query"))
       (id, totalTime)
     }
   }

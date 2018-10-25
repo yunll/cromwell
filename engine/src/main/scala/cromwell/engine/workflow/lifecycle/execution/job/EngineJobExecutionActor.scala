@@ -552,7 +552,7 @@ class EngineJobExecutionActor(replyTo: ActorRef,
           jobDescriptor,
           initializationData,
           fileHashingActorProps,
-          CallCacheReadingJobActor.props(callCacheReadActor, callCachePathPrefixes),
+          CallCacheReadingJobActor.props(callCacheReadActor, callCachePathPrefixes, serviceRegistryActor),
           factory.runtimeAttributeDefinitions(initializationData),
           backendName,
           activity,
@@ -568,7 +568,7 @@ class EngineJobExecutionActor(replyTo: ActorRef,
 
   def makeFetchCachedResultsActor(callCachingEntryId: CallCachingEntryId): Unit = {
     context.actorOf(FetchCachedResultsActor.props(callCachingEntryId, self,
-      new CallCache(EngineServicesStore.engineDatabaseInterface)))
+      new CallCache(EngineServicesStore.engineDatabaseInterface, serviceRegistryActor)))
     ()
   }
 
@@ -676,7 +676,7 @@ class EngineJobExecutionActor(replyTo: ActorRef,
   }
 
   protected def invalidateCacheHit(cacheId: CallCachingEntryId): Unit = {
-    val callCache = new CallCache(EngineServicesStore.engineDatabaseInterface)
+    val callCache = new CallCache(EngineServicesStore.engineDatabaseInterface, serviceRegistryActor)
     context.actorOf(CallCacheInvalidateActor.props(callCache, cacheId), s"CallCacheInvalidateActor${cacheId.id}-$tag")
     ()
   }

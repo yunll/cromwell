@@ -59,7 +59,7 @@ class CallCacheReadingJobActor(callCacheReadActor: ActorRef, prefixesHint: Optio
     println("hasBaseAggregatedHashMatch")
     println(s"Total time: $hasMatchTotal")
     println(s"#times method was called: $hasMatchCt")
-    println(s"Average time: ${hasMatchTotal.div(hasMatchCt)}")
+    if(hasMatchCt > 0) println(s"Average time: ${hasMatchTotal.div(hasMatchCt)}")
     println(s"Min time: $hasMatchMin")
     println(s"Max time: $hasMatchMax")
     println("**************")
@@ -131,7 +131,7 @@ class CallCacheReadingJobActor(callCacheReadActor: ActorRef, prefixesHint: Optio
 
 object CallCacheReadingJobActor {
   
-  def props(callCacheReadActor: ActorRef, prefixesHint: Option[CallCachePathPrefixes]) = {
+  def props(callCacheReadActor: ActorRef, prefixesHint: Option[CallCachePathPrefixes], serviceRegistryActor: ActorRef) = {
     Props(new CallCacheReadingJobActor(callCacheReadActor, prefixesHint)).withDispatcher(EngineDispatcher)
   }
   

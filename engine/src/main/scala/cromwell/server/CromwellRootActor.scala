@@ -100,7 +100,7 @@ abstract class CromwellRootActor(gracefulShutdown: Boolean, abortJobsOnTerminate
     .props(CopyWorkflowLogsActor.props(serviceRegistryActor, ioActor)),
     "WorkflowLogCopyRouter")
 
-  lazy val callCache: CallCache = new CallCache(EngineServicesStore.engineDatabaseInterface)
+  lazy val callCache: CallCache = new CallCache(EngineServicesStore.engineDatabaseInterface, serviceRegistryActor)
 
   lazy val numberOfCacheReadWorkers = config.getConfig("system").as[Option[Int]]("number-of-cache-read-workers").getOrElse(DefaultNumberOfCacheReadWorkers)
   lazy val callCacheReadActor = context.actorOf(RoundRobinPool(numberOfCacheReadWorkers)
