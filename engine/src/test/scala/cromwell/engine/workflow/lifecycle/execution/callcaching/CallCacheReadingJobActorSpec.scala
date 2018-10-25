@@ -1,5 +1,7 @@
 package cromwell.engine.workflow.lifecycle.execution.callcaching
 
+import java.util.concurrent.TimeUnit
+
 import akka.testkit.{TestFSMRef, TestProbe}
 import cromwell.core.TestKitSuite
 import cromwell.core.callcaching.{HashKey, HashResult, HashValue, HashingFailedMessage}
@@ -9,6 +11,8 @@ import cromwell.engine.workflow.lifecycle.execution.callcaching.CallCacheReading
 import cromwell.engine.workflow.lifecycle.execution.callcaching.EngineJobHashingActor.{CacheHit, CacheMiss, HashError}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.{FlatSpecLike, Matchers}
+
+import scala.concurrent.duration.FiniteDuration
 
 class CallCacheReadingJobActorSpec extends TestKitSuite with FlatSpecLike with Matchers with Eventually {
   behavior of "CallCacheReadingJobActor"
@@ -106,7 +110,7 @@ class CallCacheReadingJobActorSpec extends TestKitSuite with FlatSpecLike with M
     actorUnderTest.setState(WaitingForCacheHitOrMiss, CCRJAWithData(callCacheHashingActor.ref, aggregatedInitialHash, None, 1))
 
     val id: CallCachingEntryId = CallCachingEntryId(8)
-    callCacheReadProbe.send(actorUnderTest, CacheLookupNextHit(id))
+    callCacheReadProbe.send(actorUnderTest, CacheLookupNextHit(id, FiniteDuration(40, TimeUnit.MILLISECONDS)))
     parent.expectMsg(CacheHit(id))
 
     eventually {

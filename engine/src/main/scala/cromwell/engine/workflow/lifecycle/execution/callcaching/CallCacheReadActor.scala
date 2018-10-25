@@ -14,6 +14,8 @@ import scala.concurrent.Future
 import scala.util.{Failure, Success}
 import CallCache._
 
+import scala.concurrent.duration.FiniteDuration
+
 /**
   * Queues up work sent to it because its receive is non-blocking.
   *
@@ -29,13 +31,13 @@ class CallCacheReadActor(cache: CallCache,
     val response = request.command match {
       case HasMatchingInitialHashLookup(initialHash, hints) =>
         cache.hasBaseAggregatedHashMatch(initialHash, hints) map {
-          case true => HasMatchingEntries
-          case false => NoMatchingEntries
+          case (true, time) => HasMatchingEntries(time)
+          case (false, time) => NoMatchingEntries(time)
         }
       case CacheLookupRequest(aggregatedCallHashes, cacheHitNumber, prefixesHint) =>
         cache.callCachingHitForAggregatedHashes(aggregatedCallHashes, prefixesHint, cacheHitNumber) map {
-          case Some(nextHit) => CacheLookupNextHit(nextHit)
-          case None => CacheLookupNoHit
+          case (Some(nextHit), time) => CacheLookupNextHit(nextHit, time)
+          case (None, time) => CacheLookupNoHit(time)
         }
       case call @ CallCacheEntryForCall(workflowId, jobKey) =>
         import cromwell.core.ExecutionIndex._
@@ -83,12 +85,12 @@ object CallCacheReadActor {
 
   sealed trait CallCacheReadActorResponse
   // Responses on whether or not there is at least one matching entry (can for initial matches of file matches)
-  case object HasMatchingEntries extends CallCacheReadActorResponse
-  case object NoMatchingEntries extends CallCacheReadActorResponse
+  final case class HasMatchingEntries(executionTime: FiniteDuration) extends CallCacheReadActorResponse
+  final case class NoMatchingEntries(executionTime: FiniteDuration) extends CallCacheReadActorResponse
 
   // Responses when asking for the next cache hit
-  final case class CacheLookupNextHit(hit: CallCachingEntryId) extends CallCacheReadActorResponse
-  case object CacheLookupNoHit extends CallCacheReadActorResponse
+  final case class CacheLookupNextHit(hit: CallCachingEntryId, executionTime: FiniteDuration) extends CallCacheReadActorResponse
+  final case class CacheLookupNoHit(executionTime: FiniteDuration) extends CallCacheReadActorResponse
 
   final case class NoCallCacheEntry(call: CallCacheEntryForCall) extends CallCacheReadActorResponse
 

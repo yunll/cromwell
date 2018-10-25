@@ -1,5 +1,7 @@
 package cromwell.engine.workflow.lifecycle.execution.callcaching
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.{ActorRef, LoggingFSM, Props}
 import cromwell.core.Dispatcher.EngineDispatcher
 import cromwell.core.callcaching.HashingFailedMessage
@@ -8,6 +10,8 @@ import cromwell.engine.workflow.lifecycle.execution.callcaching.CallCacheHashing
 import cromwell.engine.workflow.lifecycle.execution.callcaching.CallCacheReadActor._
 import cromwell.engine.workflow.lifecycle.execution.callcaching.CallCacheReadingJobActor._
 import cromwell.engine.workflow.lifecycle.execution.callcaching.EngineJobHashingActor.{CacheHit, CacheMiss, HashError}
+
+import scala.concurrent.duration.FiniteDuration
 
 /**
   * Receives hashes from the CallCacheHashingJobActor and makes requests to the database to determine whether or not there might be a hit
@@ -24,6 +28,49 @@ import cromwell.engine.workflow.lifecycle.execution.callcaching.EngineJobHashing
   * In case of a CacheHit, stays alive in case using the hit fails and it needs to fetch the next one. Otherwise just dies.
   */
 class CallCacheReadingJobActor(callCacheReadActor: ActorRef, prefixesHint: Option[CallCachePathPrefixes]) extends LoggingFSM[CallCacheReadingJobActorState, CCRJAData] {
+  var hasMatchMin: FiniteDuration = FiniteDuration(100, TimeUnit.SECONDS)
+  var hasMatchMax: FiniteDuration = FiniteDuration(0, TimeUnit.SECONDS)
+  var hasMatchTotal: FiniteDuration = FiniteDuration(0, TimeUnit.SECONDS)
+  var hasMatchCt: Long = 0
+  var hasMatchAvg: FiniteDuration = FiniteDuration(0, TimeUnit.SECONDS)
+
+  var ccHitMin: FiniteDuration = FiniteDuration(100, TimeUnit.SECONDS)
+  var ccHitMax: FiniteDuration = FiniteDuration(0, TimeUnit.SECONDS)
+  var ccHitTotal: FiniteDuration = FiniteDuration(0, TimeUnit.SECONDS)
+  var ccHitCt: Long = 0
+  var ccHitAvg: FiniteDuration = FiniteDuration(0, TimeUnit.SECONDS)
+
+  def updateHasMatchStats(execTime: FiniteDuration): Unit = {
+    hasMatchTotal += execTime
+    hasMatchCt += 1
+    hasMatchMin = hasMatchMin.min(execTime)
+    hasMatchMax = hasMatchMax.max(execTime)
+  }
+
+  def updateCCHitStats(execTime: FiniteDuration): Unit = {
+    ccHitTotal += execTime
+    ccHitCt += 1
+    ccHitMin = hasMatchMin.min(execTime)
+    ccHitMax = hasMatchMax.max(execTime)
+  }
+
+  def printCachingStats(): Unit = {
+    println(s"------------- FIND ME OR I WILL FIND YOU! -------------")
+    println("hasBaseAggregatedHashMatch")
+    println(s"Total time: $hasMatchTotal")
+    println(s"#times method was called: $hasMatchCt")
+    println(s"Average time: ${hasMatchTotal.div(hasMatchCt)}")
+    println(s"Min time: $hasMatchMin")
+    println(s"Max time: $hasMatchMax")
+    println("**************")
+    println("callCachingHitForAggregatedHashes")
+    println(s"Total time: $ccHitTotal")
+    println(s"#times method was called: $ccHitCt")
+    if(ccHitCt > 0) println(s"Average time: ${ccHitTotal.div(ccHitCt)}")
+    println(s"Min time: $ccHitMin")
+    println(s"Max time: $ccHitMax")
+    println(s"-------------------------------------------------------")
+  }
   
   startWith(WaitingForInitialHash, CCRJANoData)
   
@@ -34,10 +81,12 @@ class CallCacheReadingJobActor(callCacheReadActor: ActorRef, prefixesHint: Optio
   }
   
   when(WaitingForHashCheck) {
-    case Event(HasMatchingEntries, CCRJAWithData(hashingActor, _, _, _)) =>
+    case Event(HasMatchingEntries(execTime), CCRJAWithData(hashingActor, _, _, _)) =>
+      updateHasMatchStats(execTime)
       hashingActor ! NextBatchOfFileHashesRequest
       goto(WaitingForFileHashes)
-    case Event(NoMatchingEntries, _) =>
+    case Event(NoMatchingEntries(execTime), _) =>
+      updateHasMatchStats(execTime)
       cacheMiss
   }
   
@@ -51,10 +100,12 @@ class CallCacheReadingJobActor(callCacheReadActor: ActorRef, prefixesHint: Optio
   }
   
   when(WaitingForCacheHitOrMiss) {
-    case Event(CacheLookupNextHit(hit), data: CCRJAWithData) =>
+    case Event(CacheLookupNextHit(hit, execTime), data: CCRJAWithData) =>
+      updateCCHitStats(execTime)
       context.parent ! CacheHit(hit)
       stay() using data.increment
-    case Event(CacheLookupNoHit, _) =>
+    case Event(CacheLookupNoHit(execTime), _) =>
+      updateCCHitStats(execTime)
       cacheMiss
     case Event(NextHit, CCRJAWithData(_, aggregatedInitialHash, aggregatedFileHash, currentHitNumber)) =>
       callCacheReadActor ! CacheLookupRequest(AggregatedCallHashes(aggregatedInitialHash, aggregatedFileHash), currentHitNumber, prefixesHint)
@@ -71,6 +122,7 @@ class CallCacheReadingJobActor(callCacheReadActor: ActorRef, prefixesHint: Optio
   }
   
   def cacheMiss = {
+    printCachingStats()
     context.parent ! CacheMiss
     context stop self
     stay()

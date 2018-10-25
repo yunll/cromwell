@@ -19,7 +19,6 @@ import cromwell.engine.workflow.lifecycle.execution.callcaching.EngineJobHashing
 import wom.core._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
 
 final case class CallCachingEntryId(id: Int)
 /**
@@ -73,35 +72,36 @@ class CallCache(database: CallCachingSqlDatabase) {
     CallCachingJoin(callCachingEntry, hashesToInsert.toSeq, aggregatedHashesToInsert, resultToInsert.toSeq, jobDetritusToInsert.toSeq)
   }
 
-  def hasBaseAggregatedHashMatch(baseAggregatedHash: String, hints: List[CacheHitHint])(implicit ec: ExecutionContext): Future[Boolean] = {
+  def hasBaseAggregatedHashMatch(baseAggregatedHash: String, hints: List[CacheHitHint])(implicit ec: ExecutionContext): Future[(Boolean, FiniteDuration)] = {
     val ccpp = hints collectFirst { case h: CallCachePathPrefixes => h.prefixes }
 
     val start = System.currentTimeMillis
     val future = database.hasMatchingCallCachingEntriesForBaseAggregation(baseAggregatedHash, ccpp)
 
-    future.onComplete {
-      case Success(bool) => {
-        val totalTime = (System.currentTimeMillis - start).millis
-        println(s"------------- FIND ME -------------")
-        println(s"Method: hasBaseAggregatedHashMatch")
-        println(s"baseAggregatedHash: $baseAggregatedHash")
-        println(s"hintsSize: ${ccpp.map(l => l.size)}")
-        println(s"Found match?: $bool")
-        println(s"*** Time spent: $totalTime")
-        println(s"----------------------------------")
-      }
-      case Failure(e) => {
-        println(s"------------- FIND ME -------------")
-        println(s"Something went wrong! Error: ${e.getMessage}")
-        println(s"----------------------------------")
-      }
+    future.map{bool =>
+      val totalTime = (System.currentTimeMillis - start).millis
+      (bool, totalTime)
     }
 
-    future
+//    val a = future.onComplete {
+//      case Success(bool) => {
+//        val totalTime = (System.currentTimeMillis - start).millis
+//        println(s"------------- FIND ME -------------")
+//        println(s"Method: hasBaseAggregatedHashMatch")
+//        println(s"baseAggregatedHash: $baseAggregatedHash")
+//        println(s"hintsSize: ${ccpp.map(l => l.size)}")
+//        println(s"Found match?: $bool")
+//        println(s"*** Time spent: $totalTime")
+//        println(s"----------------------------------")
+//
+//        Future.successful(bool, totalTime)
+//      }
+//      case Failure(e) => Future.failed(e)
+//    }
   }
 
   def callCachingHitForAggregatedHashes(aggregatedCallHashes: AggregatedCallHashes, prefixesHint: Option[CallCachePathPrefixes], hitNumber: Int)
-                                       (implicit ec: ExecutionContext): Future[Option[CallCachingEntryId]] = {
+                                       (implicit ec: ExecutionContext): Future[(Option[CallCachingEntryId], FiniteDuration)] = {
     val start = System.currentTimeMillis
 
     val future = database.findCacheHitForAggregation(
@@ -110,28 +110,33 @@ class CallCache(database: CallCachingSqlDatabase) {
       callCachePathPrefixes = prefixesHint.map(_.prefixes),
       hitNumber).map(_ map CallCachingEntryId.apply)
 
-    future.onComplete {
-      case Success(idOption) => {
-        val totalTime = (System.currentTimeMillis - start).millis
-        println(s"------------- FIND ME -------------")
-        println(s"Method: callCachingHitForAggregatedHashes")
-        println(s"aggregatedCallHashes: $aggregatedCallHashes")
-        println(s"baseAggregationHash: ${aggregatedCallHashes.baseAggregatedHash}")
-        println(s"inputFilesAggregationHash: ${aggregatedCallHashes.inputFilesAggregatedHash}")
-        println(s"hintsSize: ${prefixesHint.map(_.prefixes).get.size}")
-        println(s"hitNumber: $hitNumber")
-        idOption.foreach(id => println(s"CallCachingEntryId returned: $id"))
-        println(s"*** Time spent: $totalTime")
-        println(s"----------------------------------")
-      }
-      case Failure(e) => {
-        println(s"------------- FIND ME -------------")
-        println(s"Something went wrong! Error: ${e.getMessage}")
-        println(s"----------------------------------")
-      }
-    }
+//    future.onComplete {
+//      case Success(idOption) => {
+//        val totalTime = (System.currentTimeMillis - start).millis
+//        println(s"------------- FIND ME -------------")
+//        println(s"Method: callCachingHitForAggregatedHashes")
+//        println(s"aggregatedCallHashes: $aggregatedCallHashes")
+//        println(s"baseAggregationHash: ${aggregatedCallHashes.baseAggregatedHash}")
+//        println(s"inputFilesAggregationHash: ${aggregatedCallHashes.inputFilesAggregatedHash}")
+//        println(s"hintsSize: ${prefixesHint.map(_.prefixes).get.size}")
+//        println(s"hitNumber: $hitNumber")
+//        idOption.foreach(id => println(s"CallCachingEntryId returned: $id"))
+//        println(s"*** Time spent: $totalTime")
+//        println(s"----------------------------------")
+//      }
+//      case Failure(e) => {
+//        println(s"------------- FIND ME -------------")
+//        println(s"Something went wrong! Error: ${e.getMessage}")
+//        println(s"----------------------------------")
+//      }
+//    }
+//
+//    future
 
-    future
+    future.map{ id =>
+      val totalTime = (System.currentTimeMillis - start).millis
+      (id, totalTime)
+    }
   }
 
   def fetchCachedResult(callCachingEntryId: CallCachingEntryId)(implicit ec: ExecutionContext): Future[Option[CallCachingJoin]] = {
