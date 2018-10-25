@@ -17,12 +17,12 @@ wait_for_cromwell() {
       if [ -z ${CROMWELL_VERSION} ]
       then
         echo "Cromwell was up but failed to return its version, so something went wrong, shutting down"
-        shutdown
+#        shutdown
       fi
       export CROMWELL_VERSION
   else
     echo "Cromwell was not ready after 5 minutes, shutting down"
-    shutdown
+#    shutdown
   fi
 }
 

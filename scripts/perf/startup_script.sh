@@ -85,4 +85,4 @@ else
     echo "No workflow provided, shutting down"
 fi
 
-shutdown
+#shutdown
