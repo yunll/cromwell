@@ -217,8 +217,16 @@ object CromwellRootActor extends GracefulStopSupport {
 }
 
 object CCPrefixQueryFileWrite {
-  def writePrefixQueryTimeToFile(filePath: String, time: String) = synchronized {
-      val file = File(filePath)
+  val hasHashMatchFilePath: String = "hasHashMatchPrefixQueryTime.txt"
+  val ccHitFilePath: String = "callCacheHitPrefixQueryTime.txt"
+
+  def writeHasHashMatchQueryTimeToFile(time: String) = synchronized {
+      val file = File(hasHashMatchFilePath)
       file.appendLine(time)
+  }
+
+  def writeCCHitQueryTimeToFile(time: String) = synchronized {
+    val file = File(ccHitFilePath)
+    file.appendLine(time)
   }
 }
