@@ -221,8 +221,8 @@ object CCPrefixQueryFileWrite {
   val ccHitFilePath: String = "callCacheHitPrefixQueryTime.txt"
 
   def writeHasHashMatchQueryTimeToFile(time: String) = synchronized {
-      val file = File(hasHashMatchFilePath)
-      file.appendLine(time)
+    val file = File(hasHashMatchFilePath)
+    file.appendLine(time)
   }
 
   def writeCCHitQueryTimeToFile(time: String) = synchronized {

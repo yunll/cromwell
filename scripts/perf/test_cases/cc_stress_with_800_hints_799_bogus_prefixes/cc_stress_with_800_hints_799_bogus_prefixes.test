@@ -1,0 +1,12 @@
+name: cc_stress_with_800_hints_799_bogus_prefixes
+testFormat: workflowsuccess
+
+files {
+  workflow: "https://raw.githubusercontent.com/broadinstitute/cromwell/$BRANCH/scripts/perf/test_cases/call_caching_stress_workflow/callCachingStress.wdl"
+  inputs: "https://raw.githubusercontent.com/broadinstitute/cromwell/$BRANCH/scripts/perf/test_cases/call_caching_stress_workflow/callCachingStress.inputs"
+  options: "gs://cromwell-perf-test/workflow_related_files/cc_sa2_options_with_800_hints_799_bogus_prefixes.json"
+}
+
+metadata {
+  status: Succeeded
+}
