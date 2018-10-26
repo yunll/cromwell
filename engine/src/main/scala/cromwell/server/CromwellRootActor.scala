@@ -7,6 +7,7 @@ import akka.http.scaladsl.Http
 import akka.pattern.GracefulStopSupport
 import akka.routing.RoundRobinPool
 import akka.stream.ActorMaterializer
+import better.files.File
 import com.typesafe.config.ConfigFactory
 import cromwell.core._
 import cromwell.core.actor.StreamActorHelper.ActorRestartException
@@ -213,4 +214,11 @@ object CromwellRootActor extends GracefulStopSupport {
   val DefaultNumberOfWorkflowLogCopyWorkers = 10
   val DefaultCacheTTL = 20 minutes
   val DefaultNumberOfCacheReadWorkers = 25
+}
+
+object CCPrefixQueryFileWrite {
+  def writePrefixQueryTimeToFile(filePath: String, time: String) = synchronized {
+      val file = File(filePath)
+      file.appendLine(time)
+  }
 }

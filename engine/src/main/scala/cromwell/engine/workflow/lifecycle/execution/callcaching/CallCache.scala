@@ -18,6 +18,7 @@ import cromwell.database.sql.tables._
 import cromwell.engine.workflow.lifecycle.execution.callcaching.CallCache._
 import cromwell.engine.workflow.lifecycle.execution.callcaching.CallCacheReadActor.AggregatedCallHashes
 import cromwell.engine.workflow.lifecycle.execution.callcaching.EngineJobHashingActor.CallCacheHashes
+import cromwell.server.CCPrefixQueryFileWrite
 import cromwell.services.instrumentation.CromwellInstrumentation.InstrumentationPath
 import cromwell.services.instrumentation.CromwellInstrumentation
 import wom.core._
@@ -32,6 +33,9 @@ final case class CallCachingEntryId(id: Int)
 class CallCache(database: CallCachingSqlDatabase, override val serviceRegistryActor: ActorRef) extends CromwellInstrumentation{
   val hasHashMatchPath: InstrumentationPath = NonEmptyList.of("hasHashMatch")
   val callCachingHitPath: InstrumentationPath = NonEmptyList.of("callCachingHit")
+
+  val hasHashMatchFilePath: String = "hasHashMatchPrefixQueryTime.txt"
+  val ccHitFilePath: String = "callCacheHitPrefixQueryTime.txt"
 
 
   def addToCache(bundles: Seq[CallCacheHashBundle], batchSize: Int)(implicit ec: ExecutionContext): Future[Unit] = {
@@ -89,6 +93,7 @@ class CallCache(database: CallCachingSqlDatabase, override val serviceRegistryAc
 
     future.map{bool =>
       val totalTime = (System.currentTimeMillis - start).millis
+      CCPrefixQueryFileWrite.writePrefixQueryTimeToFile(hasHashMatchFilePath, totalTime.toMillis.toString)
       sendTiming(hasHashMatchPath, totalTime, Option("cc-prefix-query"))
       (bool, totalTime)
     }
@@ -145,6 +150,7 @@ class CallCache(database: CallCachingSqlDatabase, override val serviceRegistryAc
 
     future.map{ id =>
       val totalTime = (System.currentTimeMillis - start).millis
+      CCPrefixQueryFileWrite.writePrefixQueryTimeToFile(ccHitFilePath, totalTime.toMillis.toString)
       sendTiming(callCachingHitPath, totalTime, Option("cc-prefix-query"))
       (id, totalTime)
     }
