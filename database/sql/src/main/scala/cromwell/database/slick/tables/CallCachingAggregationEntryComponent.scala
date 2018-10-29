@@ -208,7 +208,7 @@ trait CallCachingAggregationEntryComponent {
          |      (((x2.`INPUT_FILES_AGGREGATION` is null)
          |         and
          |         (
-         |            $inputs is null
+         |            '$inputs' is null
          |         )
          |)
          |         or
