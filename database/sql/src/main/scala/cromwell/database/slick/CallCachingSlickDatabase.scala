@@ -81,7 +81,7 @@ trait CallCachingSlickDatabase extends CallCachingSqlDatabase {
         //            two.prefix, two.length,
         //            three.prefix, three.length)).result
         //        val prefixList = prefixesAndLengths(ps)
-        dataAccess.existsCallCachingEntriesForBaseAggregationHashWithCallCachePrefixList(baseAggregationHash, ps).result
+        dataAccess.existsCallCachingEntriesForBaseAggregationHashWithCallCachePrefixList(baseAggregationHash, ps)
       }
     }
     runTransaction(action)
@@ -101,7 +101,7 @@ trait CallCachingSlickDatabase extends CallCachingSqlDatabase {
 //          two.prefix, two.length,
 //          three.prefix, three.length,
 //          hitNumber).result.headOption
-        dataAccess.callCachingEntriesForAggregatedHashesWithPrefixesList(baseAggregationHash, inputFilesAggregationHash, ps, hitNumber).result.headOption
+        dataAccess.callCachingEntriesForAggregatedHashesWithPrefixesList(baseAggregationHash, inputFilesAggregationHash, ps, hitNumber)
       }
     }
 
