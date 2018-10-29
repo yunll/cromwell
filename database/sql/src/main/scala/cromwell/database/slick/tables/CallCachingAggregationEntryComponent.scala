@@ -79,7 +79,7 @@ trait CallCachingAggregationEntryComponent {
         detritus <- callCachingDetritusEntries
         if detritus.callCachingEntryId === callCachingEntry.callCachingEntryId
         detritusPath = detritus.detritusValue.map { x => x.asColumnOf[String] }
-        if prefixList.map(prefix => detritusPath.substring(0, prefix.length) === prefix).reduce(_ || _)
+        if prefixList.exists(prefix => (detritusPath.substring(0, prefix.length) === prefix).asInstanceOf[Boolean])
       } yield ()).exists
   }
 
@@ -136,7 +136,7 @@ trait CallCachingAggregationEntryComponent {
       if detritus.detritusKey === "returnCode"
       if detritus.callCachingEntryId === callCachingEntry.callCachingEntryId
       detritusPath = detritus.detritusValue.map { x => x.asColumnOf[String] }
-      if prefixList.map(prefix => detritusPath.substring(0, prefix.length) === prefix).reduce(_ || _)
+      prefixList.exists(prefix => (detritusPath.substring(0, prefix.length) === prefix).asInstanceOf[Boolean])
     } yield callCachingAggregationEntry.callCachingEntryId).drop(number - 1).take(1)
   }
 }
