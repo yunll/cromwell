@@ -68,6 +68,15 @@ trait CallCachingSlickDatabase extends CallCachingSqlDatabase {
 //    (0 to 2).toList map { total(_) map { p => PrefixAndLength(p, p.length) } getOrElse doNotMatch }
 //  }
 
+  def existsCallCachingEntriesForBaseAggregationHashWithCallCachePrefixWithTable(baseAggregation: String, prefixList: List[String])(implicit ec: ExecutionContext) = {
+    for {
+      _ <- dataAccess.createTempPrefixHintTable()
+      _ <- dataAccess.insertPrefixHints(prefixList)
+      v <- dataAccess.existsQuery(baseAggregation)
+      _ <- dataAccess.dropTempTablePrefixHints
+    } yield v.head
+  }
+
   override def hasMatchingCallCachingEntriesForBaseAggregation(baseAggregationHash: String, callCachePrefixes: Option[List[String]] = None)
                                                               (implicit ec: ExecutionContext): Future[Boolean] = {
     val action = callCachePrefixes match {
@@ -81,10 +90,21 @@ trait CallCachingSlickDatabase extends CallCachingSqlDatabase {
         //            two.prefix, two.length,
         //            three.prefix, three.length)).result
         //        val prefixList = prefixesAndLengths(ps)
-        dataAccess.existsCallCachingEntriesForBaseAggregationHashWithCallCachePrefixList(baseAggregationHash, ps)
+        existsCallCachingEntriesForBaseAggregationHashWithCallCachePrefixWithTable(baseAggregationHash, ps)
       }
     }
-    runTransaction(action)
+//    runTransaction(action)
+    database.run(action.withPinnedSession)
+  }
+
+  def callCachingEntriesForAggregatedHashesWithTable(baseAggregation: String, inputFilesAggregation: Option[String],
+                                                     prefixList: List[String], number: Int)(implicit ec: ExecutionContext) = {
+    for {
+      _ <- dataAccess.createTempPrefixHintTable()
+      _ <- dataAccess.insertPrefixHints(prefixList)
+      v <- dataAccess.findCallCacheHitQuery(baseAggregation, inputFilesAggregation, number)
+      _ <- dataAccess.dropTempTablePrefixHints
+    } yield v
   }
 
   override def findCacheHitForAggregation(baseAggregationHash: String, inputFilesAggregationHash: Option[String], callCachePathPrefixes: Option[List[String]], hitNumber: Int)
@@ -101,11 +121,12 @@ trait CallCachingSlickDatabase extends CallCachingSqlDatabase {
 //          two.prefix, two.length,
 //          three.prefix, three.length,
 //          hitNumber).result.headOption
-        dataAccess.callCachingEntriesForAggregatedHashesWithPrefixesList(baseAggregationHash, inputFilesAggregationHash, ps, hitNumber)
+        callCachingEntriesForAggregatedHashesWithTable(baseAggregationHash, inputFilesAggregationHash, ps, hitNumber)
       }
     }
 
-    runTransaction(action)
+//    runTransaction(action)
+    database.run(action.withPinnedSession)
   }
 
   override def queryResultsForCacheId(callCachingEntryId: Int)
