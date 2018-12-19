@@ -31,8 +31,10 @@ object GraphPrint {
 
     val subGraphs: Set[SubGraph] = (graph.nodes collect {
       case scatter: ScatterNode =>
+        val expression =
+          scatter.scatterVariableNodes.map(v => s"${v.identifier.localName.value} in ${v.scatterExpressionNode.inputPorts.head.name}").mkString(", ")
         SubGraph(scatter, scatter.innerGraph,
-          s"scatter (${scatter.scatterProcessingFunction})")
+          s"scatter ($expression)")
       case conditional: ConditionalNode =>
         SubGraph(conditional, conditional.innerGraph,
           s"if (${conditional.conditionExpression.womExpression.sourceString})")
@@ -75,6 +77,7 @@ object GraphPrint {
 
   private def isCallOrCallBasedDeclaration(w: GraphNode): Boolean = w match {
     case _: CallNode => true
+    case _: GraphOutputNode => true
 //    case w: Declaration if w.upstream.exists(isCallOrCallBasedDeclaration) => true
     case _ => false
   }
@@ -91,8 +94,7 @@ object GraphPrint {
     case s: ScatterNode =>
       s"scatter (${s.scatterProcessingFunction})"
     case c: GraphOutputNode =>
-      val exprString = c.graphOutputPort.identifier
-      s"output { ${c.fullyQualifiedName}$exprString }"
+      s"output { ${c.graphOutputPort.identifier.localName.value} }"
     case other => s"${other.getClass.getSimpleName}: ${other.fullyQualifiedName}"
   })
 }
