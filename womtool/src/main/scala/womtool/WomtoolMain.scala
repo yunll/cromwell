@@ -51,7 +51,7 @@ object WomtoolMain extends App {
     case p: ParseCommandLine => parse(p.workflowSource.pathAsString)
     case h: HighlightCommandLine => highlight(h.workflowSource.pathAsString, h.highlightMode)
     case i: InputsCommandLine => Inputs.inputsJson(i.workflowSource, i.showOptionals)
-    case g: WomtoolGraphCommandLine => graph(g.workflowSource.pathAsString)
+    case g: WomtoolGraphCommandLine => graph(g.workflowSource)
     case g: WomtoolWomGraphCommandLine => womGraph(g.workflowSource)
     case u: WomtoolWdlUpgradeCommandLine => upgrade(u.workflowSource.pathAsString)
     case _ => BadUsageTermination(WomtoolCommandLineParser.instance.usage)
@@ -126,17 +126,21 @@ object WomtoolMain extends App {
     }
   }
 
-  def graph(workflowSourcePath: String): Termination = {
+  def graph(workflowSourcePath: Path): Termination = {
+    WomGraphMaker.fromFiles(mainFile = workflowSourcePath, inputs = None).contextualizeErrors("create wom Graph") match {
+      case Right(graph) => {
+        val workflowDigraph = GraphPrint.generateWorkflowDigraph(graph)
+        val result = s"""|digraph ${workflowDigraph.workflowName} {
+                         |  compound=true;
+                         |  ${workflowDigraph.digraph.links.mkString(System.lineSeparator + "  ")}
+                         |  ${workflowDigraph.digraph.nodes.mkString(System.lineSeparator + "  ")}
+                         |}
+                         |"""
+        SuccessfulTermination(result.stripMargin)
+      }
+      case Left(errors) => UnsuccessfulTermination(errors.toList.mkString(System.lineSeparator, System.lineSeparator, System.lineSeparator))
+    }
 
-      val workflowDigraph = GraphPrint.generateWorkflowDigraph(workflowSourcePath)
-
-      val result = s"""|digraph ${workflowDigraph.workflowName} {
-                       |  compound=true;
-                       |  ${workflowDigraph.digraph.links.mkString(System.lineSeparator + "  ")}
-                       |  ${workflowDigraph.digraph.nodes.mkString(System.lineSeparator + "  ")}
-                       |}
-                       |"""
-      SuccessfulTermination(result.stripMargin)
   }
 
   def womGraph(workflowSourcePath: Path): Termination = {
