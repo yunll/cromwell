@@ -104,6 +104,7 @@ class PipelinesApiInitializationActor(pipelinesParams: PipelinesApiInitializatio
   override lazy val workflowPaths: Future[PipelinesApiWorkflowPaths] = for {
     gcsCred <- gcsCredentials
     genomicsCred <- genomicsCredentials
+    _ = println(s"****** genomicsCredentials: $genomicsCred")
     validatedPathBuilders <- pathBuilders
   } yield new PipelinesApiWorkflowPaths(
     workflowDescriptor, gcsCred, genomicsCred, pipelinesConfiguration, validatedPathBuilders, standardStreamNameToFileNameMetadataMapper)(ioEc)
@@ -111,7 +112,9 @@ class PipelinesApiInitializationActor(pipelinesParams: PipelinesApiInitializatio
   override lazy val initializationData: Future[PipelinesApiBackendInitializationData] = for {
     jesWorkflowPaths <- workflowPaths
     gcsCreds <- gcsCredentials
+    _ = println(s"********* gcsCredentials: $gcsCreds")
     genomicsFactory <- genomics
+    _ = println(s"****** Genomics: $genomicsFactory")
   } yield PipelinesApiBackendInitializationData(
     workflowPaths = jesWorkflowPaths,
     runtimeAttributesBuilder = runtimeAttributesBuilder,

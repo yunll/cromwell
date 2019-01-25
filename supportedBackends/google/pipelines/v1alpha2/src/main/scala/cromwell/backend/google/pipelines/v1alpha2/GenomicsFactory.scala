@@ -65,6 +65,10 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
             GenomicsScopes.GENOMICS,
             ComputeScopes.COMPUTE
           ).asJava)
+
+        println(s"*********** SERVICE ACCOUNT: ${createPipelineParameters.computeServiceAccount}")
+        println(s"Entire obj: $svcAccount")
+        println("*************")
         val rpargs = new RunPipelineArgs().setProjectId(createPipelineParameters.projectId).setServiceAccount(svcAccount).setResources(runtimePipelineResources)
 
         rpargs.setInputs((inputParameters.safeMapValues(_.toGoogleRunParameter) ++ literalInputRunParameters).asJava)

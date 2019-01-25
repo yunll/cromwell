@@ -32,6 +32,8 @@ case class DrsPathResolver(drsConfig: DrsConfig, httpClientBuilder: HttpClientBu
 
 
   private def makeHttpRequestToMartha(drsPath: String, serviceAccount: Option[String]): HttpPost = {
+    println(s"******* SA Token to ping Martha: $serviceAccount")
+
     val postRequest = new HttpPost(drsConfig.marthaUri)
     val requestJson = drsConfig.marthaRequestJsonTemplate.replace(DrsPathToken, drsPath)
     postRequest.setEntity(new StringEntity(requestJson, ContentType.APPLICATION_JSON))
