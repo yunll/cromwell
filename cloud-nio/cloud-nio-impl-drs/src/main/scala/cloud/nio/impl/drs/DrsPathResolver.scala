@@ -50,7 +50,11 @@ case class DrsPathResolver(drsConfig: DrsConfig, httpClientBuilder: HttpClientBu
     val responseEntityOption = (responseStatusLine.getStatusCode == HttpStatus.SC_OK).valueOrZero(marthaResponseEntityOption)
     val responseContentIO = toIO(responseEntityOption, exceptionMsg)
 
-    responseContentIO.flatMap(responseContent => IO.fromEither(decode[MarthaResponse](responseContent))).handleErrorWith {
+    responseContentIO.flatMap(responseContent => {
+      println(s"FIND ME")
+      println(s"Response from Martha: $responseContent")
+      IO.fromEither(decode[MarthaResponse](responseContent))
+    }).handleErrorWith {
       e => IO.raiseError(new RuntimeException(s"Failed to parse response from Martha into a case class. Error: ${ExceptionUtils.getMessage(e)}"))
     }
   }
