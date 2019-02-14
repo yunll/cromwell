@@ -9,6 +9,7 @@ import cromwell.database.sql.MetadataSqlDatabase
 import cromwell.database.sql.SqlConverters._
 import cromwell.database.sql.joins.{CallOrWorkflowQuery, CallQuery, MetadataJobQueryValue, WorkflowQuery}
 import cromwell.database.sql.tables.{CustomLabelEntry, MetadataEntry, WorkflowMetadataSummaryEntry}
+import slick.jdbc.TransactionIsolation
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -35,7 +36,7 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
   override def addMetadataEntries(metadataEntries: Iterable[MetadataEntry])
                                  (implicit ec: ExecutionContext): Future[Unit] = {
     val action = DBIO.seq(metadataEntries.grouped(insertBatchSize).map(dataAccess.metadataEntries ++= _).toSeq:_*)
-    runTransaction(action).map(_ => ())
+    runTransaction(action, TransactionIsolation.Serializable).map(_ => ())
   }
 
   override def metadataEntryExists(workflowExecutionUuid: String)(implicit ec: ExecutionContext): Future[Boolean] = {
