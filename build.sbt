@@ -347,6 +347,9 @@ lazy val perf = project
   .withExecutableSettings("perf", dependencies = perfDependencies, pushDocker = false)
   .dependsOn(common)
 
+lazy val intermediateOutputs = project
+  .withExecutableSettings(executableName = "intermediateOutputs", dependencies = intermediateOutputsDependencies, pushDocker = false)
+
 lazy val server = project
   .withExecutableSettings("cromwell", serverDependencies)
   .dependsOn(engine)
@@ -395,6 +398,7 @@ lazy val root = (project in file("."))
   .aggregate(googlePipelinesCommon)
   .aggregate(googlePipelinesV1Alpha2)
   .aggregate(googlePipelinesV2Alpha1)
+  .aggregate(intermediateOutputs)
   .aggregate(jesBackend)
   .aggregate(languageFactoryCore)
   .aggregate(ossFileSystem)

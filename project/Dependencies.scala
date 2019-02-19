@@ -337,7 +337,7 @@ object Dependencies {
     "com.typesafe.scala-logging" %% "scala-logging" % scalaLoggingV,
     "ch.qos.logback" % "logback-access" % logbackV,
     "ch.qos.logback" % "logback-classic" % logbackV,
-    "ch.qos.logback" % "logback-core" % logbackV,
+    "ch.qos.logback" % "logback-core" % logbackV
   ) ++ catsDependencies ++ configDependencies
 
   val cloudSupportDependencies = googleApiClientDependencies ++ googleCloudDependencies ++ betterFilesDependencies ++ awsCloudDependencies
@@ -501,6 +501,12 @@ object Dependencies {
 
   val perfDependencies = circeDependencies ++ betterFilesDependencies ++ commonDependencies ++
     googleApiClientDependencies ++ googleCloudDependencies
+
+  val intermediateOutputsDependencies = List(
+    "org.typelevel" %% "cats-effect" % catsEffectV,
+    "com.google.cloud" % "google-cloud-storage" % googleCloudCoreV,
+    "com.google.oauth-client" % "google-oauth-client" % googleApiClientV
+  ) ++ catsDependencies
 
   val allProjectDependencies =
     backendDependencies ++
