@@ -69,8 +69,7 @@ trait WorkflowMetadataSummaryEntryComponent {
                                            workflowExecutionUuids: Set[String],
                                            submissionTimestampOption: Option[Timestamp],
                                            startTimestampOption: Option[Timestamp],
-                                           endTimestampOption: Option[Timestamp],
-                                           includeSubworkflows: Boolean): WorkflowMetadataSummaryEntries => Rep[Boolean] = {
+                                           endTimestampOption: Option[Timestamp]): WorkflowMetadataSummaryEntries => Rep[Boolean] = {
     val include: Rep[Boolean] = true
     val exclude: Rep[Boolean] = false
 
@@ -97,8 +96,6 @@ trait WorkflowMetadataSummaryEntryComponent {
       val workflowStatusFilter = workflowStatuses.
         map(workflowStatus => workflowMetadataSummaryEntry.workflowStatus.fold(ifEmpty = exclude)(_ === workflowStatus)).
         reduceLeftOption(_ || _)
-      val notASubworkflowFilter: Option[Rep[Boolean]] =
-        if (includeSubworkflows) None else Option(!metadataEntryExistsForWorkflowExecutionUuid(workflowMetadataSummaryEntry.workflowExecutionUuid, parentIdWorkflowMetadataKey))
 
       // Put all the optional filters above together in one place.
       val optionalFilters: List[Option[Rep[Boolean]]] = List(
@@ -107,8 +104,7 @@ trait WorkflowMetadataSummaryEntryComponent {
         workflowStatusFilter,
         startTimestampFilter,
         endTimestampFilter,
-        submissionTimestampFilter,
-        notASubworkflowFilter
+        submissionTimestampFilter
       )
       // Unwrap the optional filters.  If any of these filters are not defined, replace with `include` to include all
       // rows which might otherwise have been filtered.
@@ -137,11 +133,10 @@ trait WorkflowMetadataSummaryEntryComponent {
       workflowExecutionUuids,
       submissionTimestampOption,
       startTimestampOption,
-      endTimestampOption,
-      includeSubworkflows
+      endTimestampOption
     )
 
-    // First do the summary table filtering, then some performance optimizations below for labels.
+    // First do the summary table filtering, then some performance optimizations below for labels and subworkflows.
     val baseQuery = workflowMetadataSummaryEntries.filter(filter)
 
     // Label ANDs and ORs can be expressed as `join`s which at least on MySQL appear to execute more efficiently than
@@ -180,7 +175,7 @@ trait WorkflowMetadataSummaryEntryComponent {
 
     val baseQueryWithIncludeLabels = addLabelsQueries(ands = labelAndKeyLabelValues, ors = labelOrKeyLabelValues, baseWorkflowsQuery = baseQuery)
 
-    if (excludeLabelAndValues.nonEmpty || excludeLabelOrValues.nonEmpty) {
+    val queryFactoringInLabels = if (excludeLabelAndValues.nonEmpty || excludeLabelOrValues.nonEmpty) {
       // If there are labels to be excluded, run the includes query first then filter anything found in an excludes query.
       val baseQueryWithExcludeLabels = addLabelsQueries(
         ands = excludeLabelAndValues,
@@ -190,6 +185,15 @@ trait WorkflowMetadataSummaryEntryComponent {
       baseQueryWithIncludeLabels.filterNot(_.workflowExecutionUuid in baseQueryWithExcludeLabels.map(_.workflowExecutionUuid))
     } else {
       baseQueryWithIncludeLabels
+    }
+
+    if (includeSubworkflows) {
+      queryFactoringInLabels
+    } else {
+      val subworkflowSummaries = queryFactoringInLabels join metadataEntries on {
+        case (s, m) => s.workflowExecutionUuid === m.workflowExecutionUuid && m.metadataKey === parentIdWorkflowMetadataKey } map { case (s, _) => s }
+
+      queryFactoringInLabels.filterNot(_.workflowExecutionUuid in subworkflowSummaries.map(_.workflowExecutionUuid))
     }
   }
 
