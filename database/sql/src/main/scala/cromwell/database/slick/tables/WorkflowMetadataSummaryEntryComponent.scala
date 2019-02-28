@@ -110,16 +110,14 @@ trait WorkflowMetadataSummaryEntryComponent {
         submissionTimestampFilter,
         notASubworkflowFilter
       )
-      // Unwrap the optional filters.  If any of these filters are not defined, replace with `include` to include all
-      // rows which might otherwise have been filtered.
-      val filters = optionalFilters.map(_.getOrElse(include))
-      // AND together the filters.  If there are no filters at all return `include`.
-      filters.reduceLeftOption(_ && _).getOrElse(include)
+      // `flatten` to remove empty filters, AND together the remaining filters.  If there are no filters at all return `include`.
+      optionalFilters.flatten.reduceLeftOption(_ && _).getOrElse(include)
     }
   }
 
   private def doFiltering(parentIdWorkflowMetadataKey: String,
-                          workflowStatuses: Set[String], workflowNames: Set[String],
+                          workflowStatuses: Set[String],
+                          workflowNames: Set[String],
                           workflowExecutionUuids: Set[String],
                           labelAndKeyLabelValues: Set[(String,String)],
                           labelOrKeyLabelValues: Set[(String,String)],
@@ -141,8 +139,15 @@ trait WorkflowMetadataSummaryEntryComponent {
       includeSubworkflows
     )
 
+    // Optimization to use just the table query if there are no summary filters
+    // (MySQL seems to be quite sensitive to this).
+    val noSummaryFilters: Boolean = {
+      includeSubworkflows &&
+        Set(workflowStatuses, workflowNames, workflowExecutionUuids).forall(_.isEmpty) &&
+        Set(submissionTimestampOption, startTimestampOption, endTimestampOption).forall(_.isEmpty)
+    }
     // First do the summary table filtering, then some performance optimizations below for labels.
-    val baseQuery = workflowMetadataSummaryEntries.filter(filter)
+    val baseQuery = if (noSummaryFilters) workflowMetadataSummaryEntries else workflowMetadataSummaryEntries.filter(filter)
 
     // Label ANDs and ORs can be expressed as `join`s which at least on MySQL appear to execute more efficiently than
     // equivalent `exists` formulations.
