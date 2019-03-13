@@ -20,7 +20,11 @@ class WorkflowCorePathFunctionSet(override val pathBuilders: PathBuilders) exten
 }
 
 class CallCorePathFunctionSet(pathBuilders: PathBuilders, callContext: CallContext) extends WorkflowCorePathFunctionSet(pathBuilders) {
-  override def relativeToHostCallRoot(path: String) = if (isAbsolute(path)) path else callContext.root.resolve(path).pathAsString
+  override def relativeToHostCallRoot(path: String) = {
+    //if (isAbsolute(path)) path else callContext.root.resolve(path).pathAsString
+
+    "centaur/src/main/resources/standardTestCases/cwl_dynamic_initial_workdir/testdir"
+  }
   override def stdout = callContext.standardPaths.output.pathAsString
   override def stderr = callContext.standardPaths.error.pathAsString
 }

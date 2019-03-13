@@ -1,5 +1,7 @@
 package cwl
 
+import cats.data.{EitherT, NonEmptyList}
+import cats.effect.IO
 import cats.syntax.validated._
 import cats.syntax.functor._
 import cats.syntax.traverse._
@@ -67,11 +69,16 @@ final case class InitialWorkDirFileGeneratorExpression(entry: IwdrListingArrayEn
       } yield WomMaybeListedDirectory(Option(directory), Option(fileListing))
     }
     
-    inputValues.toList.traverse[IOChecked, (String, WomValue)]({
+    inputValues.toList.traverse[IOChecked, (String, WomValue)](ta => {
+      println(s"!!!!! inputValues.toList.traverse t: $ta")
+      val tb: EitherT[IO, NonEmptyList[String], (String, WomValue)] = ta match {
       case (k, v: WomMaybeListedDirectory) =>
         val absolutePathString = ioFunctionSet.pathFunctions.relativeToHostCallRoot(v.value)
         recursivelyBuildDirectory(absolutePathString).contextualizeErrors(s"Error building directory $absolutePathString") map { k -> _ }
       case kv => kv.validIOChecked
+    }
+      println(s"!!!!! tb: $tb")
+      tb
     }).map(_.toMap)
       .flatMap({ updatedValues =>
         val unmappedParameterContext = ParameterContext(ioFunctionSet, expressionLib, updatedValues)

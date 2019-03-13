@@ -494,9 +494,15 @@ trait StandardAsyncExecutionActor extends AsyncBackendJobExecutionActor with Sta
       .flatTraverse[ErrorOr, AdHocValue](evaluateAndInitialize.andThen(_.toValidated))
   }
 
-  lazy val localizedAdHocValues: ErrorOr[List[StandardAdHocValue]] = evaluatedAdHocFiles.toEither
-    .flatMap(localizeAdHocValues.andThen(_.toEither))
-    .toValidated
+  lazy val localizedAdHocValues: ErrorOr[List[StandardAdHocValue]] = {
+     val a = evaluatedAdHocFiles.toEither
+      .flatMap(localizeAdHocValues.andThen(_.toEither))
+      .toValidated
+
+    println(s"!!!!!!! localizedAdHocValues: $a")
+
+    a
+  }
 
   protected def asAdHocFile(womFile: WomFile) = evaluatedAdHocFiles map { _.find({
     case AdHocValue(file, _, _) => file.value == womFile.value
@@ -515,7 +521,8 @@ trait StandardAsyncExecutionActor extends AsyncBackendJobExecutionActor with Sta
         in map {
           case (inputDefinition, originalWomValue) =>
             inputDefinition -> adHocFiles.collectFirst({
-              case AsAdHocValue(AdHocValue(originalWomFile, _, Some(inputName))) if inputName == inputDefinition.localName.value => originalWomFile
+              case AsAdHocValue(AdHocValue(originalWomFile, _, Some(inputName))) if inputName == inputDefinition.localName.value =>
+                originalWomFile
               case AsLocalizedAdHocValue(LocalizedAdHocValue(AdHocValue(originalWomFile, _, Some(inputName)), localizedPath)) if inputName == inputDefinition.localName.value =>
                 originalWomFile.mapFile(_ => localizedPath.pathAsString)
             }).getOrElse(originalWomValue)
