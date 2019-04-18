@@ -32,6 +32,7 @@ object Dependencies {
   private val googleGenomicsServicesV1ApiV = "v1alpha2-rev495-1.23.0"
   private val googleGenomicsServicesV2ApiV = "v2alpha1-rev31-1.25.0"
   private val googleOauth2V = "0.13.0"
+  private val googleCloudResourceManagerV = "0.87.0-alpha"
   private val grpcV = "1.18.0"
   private val guavaV = "27.0.1-jre"
   private val heterodonV = "1.0.0-beta3"
@@ -122,7 +123,8 @@ object Dependencies {
     "com.google.api-client" % "google-api-client-java6" % googleApiClientV
       exclude("com.google.guava", "guava-jdk5"),
     "com.google.api-client" % "google-api-client-jackson2" % googleApiClientV
-      exclude("com.google.guava", "guava-jdk5")
+      exclude("com.google.guava", "guava-jdk5"),
+    "com.google.cloud" % "google-cloud-resourcemanager" % googleCloudResourceManagerV
   )
 
   val spiDependencies = List(
