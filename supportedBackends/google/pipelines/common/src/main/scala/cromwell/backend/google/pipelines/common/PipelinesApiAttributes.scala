@@ -9,7 +9,7 @@ import com.typesafe.config.{Config, ConfigValue}
 import common.exception.MessageAggregation
 import common.validation.ErrorOr._
 import common.validation.Validation._
-import cromwell.backend.google.pipelines.common.PipelinesApiAttributes.LocalizationConfiguration
+import cromwell.backend.google.pipelines.common.PipelinesApiAttributes.{LocalizationConfiguration, VirtualPrivateCloudConfiguration}
 import cromwell.backend.google.pipelines.common.authentication.PipelinesApiAuths
 import cromwell.backend.google.pipelines.common.callcaching.{CopyCachedOutputs, PipelinesCacheHitDuplicationStrategy, UseOriginalCachedOutputs}
 import cromwell.cloudsupport.gcp.GoogleConfiguration
@@ -33,7 +33,8 @@ case class PipelinesApiAttributes(project: String,
                                   duplicationStrategy: PipelinesCacheHitDuplicationStrategy,
                                   requestWorkers: Int Refined Positive,
                                   logFlushPeriod: Option[FiniteDuration],
-                                  localizationConfiguration: LocalizationConfiguration)
+                                  localizationConfiguration: LocalizationConfiguration,
+                                  virtualPrivateCloudConfiguration: VirtualPrivateCloudConfiguration)
 
 object PipelinesApiAttributes {
 
@@ -42,6 +43,8 @@ object PipelinesApiAttributes {
     *                             hence it is positive.
     */
   case class LocalizationConfiguration(localizationAttempts: Int Refined Positive)
+
+  case class VirtualPrivateCloudConfiguration(name: Option[String], subnetwork: Option[String])
 
   lazy val Logger = LoggerFactory.getLogger("JesAttributes")
 
@@ -77,7 +80,10 @@ object PipelinesApiAttributes {
     "default-runtime-attributes.disks",
     "default-runtime-attributes.noAddress",
     "default-runtime-attributes.preemptible",
-    "default-runtime-attributes.zones"
+    "default-runtime-attributes.zones",
+    "virtual-private-cloud",
+    "virtual-private-cloud.name",
+    "virtual-private-cloud.subnetwork"
   )
 
   private val deprecatedJesKeys: Map[String, String] = Map(
@@ -126,6 +132,14 @@ object PipelinesApiAttributes {
         .map(_.map(LocalizationConfiguration.apply))
         .getOrElse(LocalizationConfiguration(DefaultLocalizationAttempts).validNel)
 
+    //TODO: Saloni-simplify this please!!
+    val virtualPrivateCloudConfiguration: ErrorOr[VirtualPrivateCloudConfiguration] = {
+      (validate { backendConfig.getAs[String]("virtual-private-cloud.name")},
+        validate { backendConfig.getAs[String]("virtual-private-cloud.name")}) mapN {
+        case (name, subnetwork) => VirtualPrivateCloudConfiguration(name, subnetwork)
+      }
+    }
+
 
     def authGoogleConfigForJesAttributes(project: String,
                                          bucket: String,
@@ -136,12 +150,29 @@ object PipelinesApiAttributes {
                                          qps: Int Refined Positive,
                                          cachingStrategy: PipelinesCacheHitDuplicationStrategy,
                                          requestWorkers: Int Refined Positive,
-                                         localizationConfiguration: LocalizationConfiguration): ErrorOr[PipelinesApiAttributes] = (googleConfig.auth(genomicsName), googleConfig.auth(gcsName)) mapN {
-      (genomicsAuth, gcsAuth) => PipelinesApiAttributes(project, computeServiceAccount, PipelinesApiAuths(genomicsAuth, gcsAuth), restrictMetadata, bucket, endpointUrl, maxPollingInterval, qps, cachingStrategy, requestWorkers, logFlushPeriod, localizationConfiguration)
+                                         localizationConfiguration: LocalizationConfiguration,
+                                         virtualPrivateCloudConfiguration: VirtualPrivateCloudConfiguration): ErrorOr[PipelinesApiAttributes] =
+      (googleConfig.auth(genomicsName), googleConfig.auth(gcsName)) mapN {
+        (genomicsAuth, gcsAuth) =>
+          PipelinesApiAttributes(
+            project = project,
+            computeServiceAccount = computeServiceAccount,
+            auths = PipelinesApiAuths(genomicsAuth, gcsAuth),
+            restrictMetadataAccess = restrictMetadata,
+            executionBucket = bucket,
+            endpointUrl = endpointUrl,
+            maxPollingInterval = maxPollingInterval,
+            qps = qps,
+            duplicationStrategy = cachingStrategy,
+            requestWorkers = requestWorkers,
+            logFlushPeriod = logFlushPeriod,
+            localizationConfiguration = localizationConfiguration,
+            virtualPrivateCloudConfiguration = virtualPrivateCloudConfiguration
+          )
     }
 
     (project, executionBucket, endpointUrl, genomicsAuthName, genomicsRestrictMetadataAccess, gcsFilesystemAuthName,
-      qpsValidation, duplicationStrategy, requestWorkers, localizationConfiguration) flatMapN authGoogleConfigForJesAttributes match {
+      qpsValidation, duplicationStrategy, requestWorkers, localizationConfiguration, virtualPrivateCloudConfiguration) flatMapN authGoogleConfigForJesAttributes match {
       case Valid(r) => r
       case Invalid(f) =>
         throw new IllegalArgumentException with MessageAggregation {

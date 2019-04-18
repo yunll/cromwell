@@ -2,10 +2,12 @@ package cromwell.backend.google.pipelines.v2alpha1
 
 import java.net.URL
 
-import com.google.api.client.http.HttpRequestInitializer
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
+import com.google.api.client.http.{HttpRequestInitializer, HttpResponse}
+import com.google.api.services.cloudresourcemanager.CloudResourceManager
 import com.google.api.services.compute.ComputeScopes
-import com.google.api.services.genomics.v2alpha1.{Genomics, GenomicsScopes}
 import com.google.api.services.genomics.v2alpha1.model._
+import com.google.api.services.genomics.v2alpha1.{Genomics, GenomicsScopes}
 import com.google.api.services.oauth2.Oauth2Scopes
 import com.google.api.services.storage.StorageScopes
 import cromwell.backend.google.pipelines.common.PipelinesApiAttributes.LocalizationConfiguration
@@ -22,6 +24,7 @@ import wdl4s.parser.MemoryUnit
 import wom.format.MemorySize
 
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Success, Try}
 
 case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, endpointUrl: URL)(implicit localizationConfiguration: LocalizationConfiguration) extends PipelinesApiFactoryInterface
   with ContainerSetup
@@ -48,6 +51,63 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
     }
 
     override def runRequest(createPipelineParameters: CreatePipelineParameters, jobLogger: JobLogger) = {
+
+      def abc(): HttpResponse = {
+//        val serviceAccount = new ServiceAccount()
+//          .setEmail(createPipelineParameters.computeServiceAccount)
+//          .setScopes(
+//            List(
+//              GenomicsScopes.CLOUD_PLATFORM
+//            ).asJava
+//          )
+//
+//        import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
+//        val credential = new GoogleCredential().setAccessToken(serviceAccount)
+
+//        val cred = GoogleCredential.getApplicationDefault().createScoped(List(GenomicsScopes.CLOUD_PLATFORM).asJava)
+
+        val credentials = Try{
+          createPipelineParameters.computeServiceAccount match {
+            case "default" => GoogleCredential.getApplicationDefault()
+            case serviceAccountId => new GoogleCredential.Builder()
+              .setTransport(GoogleAuthMode.httpTransport)
+              .setJsonFactory(GoogleAuthMode.jsonFactory)
+              .setServiceAccountId(serviceAccountId)
+              .setServiceAccountScopes(List(GenomicsScopes.CLOUD_PLATFORM).asJava)
+              .build()
+          }
+        } match {
+          case Success(c) =>
+            c
+          case Failure(e) =>
+            println(e.getCause)
+            GoogleCredential.getApplicationDefault()
+        }
+
+
+
+        val cloudResourceManagerBuilder = new CloudResourceManager.Builder(GoogleAuthMode.httpTransport, GoogleAuthMode.jsonFactory, credentials).build()
+
+        val project = cloudResourceManagerBuilder.projects().get(createPipelineParameters.projectId)
+
+        project.buildHttpRequest().executeAsync().get()
+      }
+
+//      def getThatNow(network: Network) = {
+//        createPipelineParameters.virtualPrivateCloudConfiguration.name.map { network =>
+////          onComplete(abc()) {
+////            case Success(httpResponse) => ???
+////          }
+//
+//          abc()
+//        }
+//
+//
+//
+//
+//
+//      }
+
       // Disks defined in the runtime attributes
       val disks = createPipelineParameters |> toDisks
       // Mounts for disks defined in the runtime attributes
@@ -79,12 +139,18 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
             Oauth2Scopes.USERINFO_EMAIL,
             Oauth2Scopes.USERINFO_PROFILE,
             // Monitoring scope as POC
-            GenomicsFactory.MonitoringWrite,
+            GenomicsFactory.MonitoringWrite
           ).asJava
         )
 
       val network = new Network()
         .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
+
+//      val vpc = getThatNow(network)
+
+      println("---------- ENTERING THAT PHASE -----------")
+      val vpc = abc()
+      println(vpc.parseAsString())
 
       val accelerators = createPipelineParameters.runtimeAttributes
         .gpuResource.map(toAccelerator).toList.asJava
@@ -167,3 +233,5 @@ object GenomicsFactory {
     */
   val MonitoringWrite = "https://www.googleapis.com/auth/monitoring.write"
 }
+
+case class NetworkLabels(labels: Map[String, String])
