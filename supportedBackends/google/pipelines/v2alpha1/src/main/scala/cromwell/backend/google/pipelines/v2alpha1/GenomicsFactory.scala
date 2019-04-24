@@ -2,15 +2,15 @@ package cromwell.backend.google.pipelines.v2alpha1
 
 import java.net.URL
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
-import com.google.api.client.http.{HttpRequestInitializer, HttpResponse}
+import cats.effect.IO
+import com.google.api.client.http.{HttpRequest, HttpRequestInitializer, HttpResponse}
 import com.google.api.services.cloudresourcemanager.CloudResourceManager
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.genomics.v2alpha1.model._
 import com.google.api.services.genomics.v2alpha1.{Genomics, GenomicsScopes}
 import com.google.api.services.oauth2.Oauth2Scopes
 import com.google.api.services.storage.StorageScopes
-import cromwell.backend.google.pipelines.common.PipelinesApiAttributes.LocalizationConfiguration
+import cromwell.backend.google.pipelines.common.PipelinesApiAttributes.{LocalizationConfiguration, VirtualPrivateCloudConfiguration}
 import cromwell.backend.google.pipelines.common.api.PipelinesApiRequestFactory.CreatePipelineParameters
 import cromwell.backend.google.pipelines.common.api.{PipelinesApiFactoryInterface, PipelinesApiRequestFactory}
 import cromwell.backend.google.pipelines.v2alpha1.PipelinesConversions._
@@ -19,12 +19,15 @@ import cromwell.backend.standard.StandardAsyncJob
 import cromwell.cloudsupport.gcp.auth.GoogleAuthMode
 import cromwell.core.DockerConfiguration
 import cromwell.core.logging.JobLogger
+import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
+import io.circe.parser.decode
 import mouse.all._
+import org.apache.commons.lang3.exception.ExceptionUtils
 import wdl4s.parser.MemoryUnit
 import wom.format.MemorySize
 
 import scala.collection.JavaConverters._
-import scala.util.{Failure, Success, Try}
 
 case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, endpointUrl: URL)(implicit localizationConfiguration: LocalizationConfiguration) extends PipelinesApiFactoryInterface
   with ContainerSetup
@@ -34,6 +37,11 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
   with Delocalization {
 
   override def build(initializer: HttpRequestInitializer): PipelinesApiRequestFactory = new PipelinesApiRequestFactory {
+    implicit lazy val labelDecoder: Decoder[ProjectLabels] = deriveDecoder
+
+    val ResourceManagerAuthScopes = List(GenomicsScopes.CLOUD_PLATFORM).asJava
+    val VirtualPrivateCloudNetworkPath = "projects/%s/global/networks/%s/"
+
     val genomics = new Genomics.Builder(
       GoogleAuthMode.httpTransport,
       GoogleAuthMode.jsonFactory,
@@ -41,6 +49,7 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
       .setApplicationName(applicationName)
       .setRootUrl(endpointUrl.toString)
       .build
+
 
     override def cancelRequest(job: StandardAsyncJob) = {
       genomics.projects().operations().cancel(job.jobId, new CancelOperationRequest()).buildHttpRequest()
@@ -50,63 +59,91 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
       genomics.projects().operations().get(job.jobId).buildHttpRequest()
     }
 
-    override def runRequest(createPipelineParameters: CreatePipelineParameters, jobLogger: JobLogger) = {
+    override def runRequest(createPipelineParameters: CreatePipelineParameters, jobLogger: JobLogger): HttpRequest = {
 
-      def abc(): HttpResponse = {
-//        val serviceAccount = new ServiceAccount()
-//          .setEmail(createPipelineParameters.computeServiceAccount)
-//          .setScopes(
-//            List(
-//              GenomicsScopes.CLOUD_PLATFORM
-//            ).asJava
-//          )
-//
-//        import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
-//        val credential = new GoogleCredential().setAccessToken(serviceAccount)
+      def projectMetadataRequest(vpcConfig: VirtualPrivateCloudConfiguration): Either[Throwable, HttpRequest] = {
+        val workflowOptions = createPipelineParameters.jobDescriptor.workflowDescriptor.workflowOptions
 
-//        val cred = GoogleCredential.getApplicationDefault().createScoped(List(GenomicsScopes.CLOUD_PLATFORM).asJava)
+        val googleCredentialOption = vpcConfig.auth.apiClientGoogleCredential((key: String) => workflowOptions.get(key).get)
 
-        val credentials = Try{
-          createPipelineParameters.computeServiceAccount match {
-            case "default" => GoogleCredential.getApplicationDefault()
-            case serviceAccountId => new GoogleCredential.Builder()
-              .setTransport(GoogleAuthMode.httpTransport)
-              .setJsonFactory(GoogleAuthMode.jsonFactory)
-              .setServiceAccountId(serviceAccountId)
-              .setServiceAccountScopes(List(GenomicsScopes.CLOUD_PLATFORM).asJava)
+        googleCredentialOption match {
+          case None => Left(new RuntimeException(s"Unable to find credentials for auth ${vpcConfig.auth.name}."))
+          case Some(googleCredential) => {
+            val auth = googleCredential.createScoped(ResourceManagerAuthScopes)
+
+            println(auth)
+
+            val cloudResourceManagerBuilder = new CloudResourceManager
+              .Builder(GoogleAuthMode.httpTransport, GoogleAuthMode.jsonFactory, auth)
               .build()
+
+            val project = cloudResourceManagerBuilder.projects().get(createPipelineParameters.projectId)
+
+            Right(project.buildHttpRequest())
           }
-        } match {
-          case Success(c) =>
-            c
-          case Failure(e) =>
-            println(e.getCause)
-            GoogleCredential.getApplicationDefault()
         }
-
-
-
-        val cloudResourceManagerBuilder = new CloudResourceManager.Builder(GoogleAuthMode.httpTransport, GoogleAuthMode.jsonFactory, credentials).build()
-
-        val project = cloudResourceManagerBuilder.projects().get(createPipelineParameters.projectId)
-
-        project.buildHttpRequest().executeAsync().get()
       }
 
-//      def getThatNow(network: Network) = {
-//        createPipelineParameters.virtualPrivateCloudConfiguration.name.map { network =>
-////          onComplete(abc()) {
-////            case Success(httpResponse) => ???
-////          }
-//
-//          abc()
-//        }
-//
-//
-//
-//
-//
-//      }
+
+      def projectMetadataResponseToLabels(httpResponse: HttpResponse): IO[ProjectLabels] = {
+        IO.fromEither(decode[ProjectLabels](httpResponse.parseAsString())).handleErrorWith {
+          e => IO.raiseError(new RuntimeException(s"Failed to parse the labels from project metadata response from Google Cloud Resource Manager API. " +
+            s"Error: ${ExceptionUtils.getMessage(e)}"))
+        }
+      }
+
+
+      def networkLabels(vpcConfig: VirtualPrivateCloudConfiguration, projectLabels: ProjectLabels): Either[Throwable, Network] = {
+        val networkLabelOption = projectLabels.labels.find(l => l._1.equals(vpcConfig.name))
+        val subnetworkLabelOption = vpcConfig.subnetwork.flatMap { subnetworkKey =>
+          projectLabels.labels.find(l => l._1.equals(subnetworkKey))
+        }
+
+        (networkLabelOption, subnetworkLabelOption) match {
+          case (Some(networkLabel), Some(subnetworkLabel)) => {
+            Right(new Network()
+              .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
+              .setName(VirtualPrivateCloudNetworkPath.format(createPipelineParameters.projectId, networkLabel._2))
+              .setSubnetwork(subnetworkLabel._2))
+          }
+          case (Some(networkLabel), None) =>
+            Right(new Network()
+              .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
+              .setName(VirtualPrivateCloudNetworkPath.format(createPipelineParameters.projectId, networkLabel._2)))
+          case (None, Some(_)) =>
+            Left(new RuntimeException(s"Project metadata does not have network label: ${vpcConfig.name}."))
+          case (None, None) =>
+            Left(new RuntimeException(s"Project metadata does not have network label: ${vpcConfig.name} nor subnetwork label."))
+        }
+      }
+
+
+      def createNetworkWithVPC(vpcConfig: VirtualPrivateCloudConfiguration): Network = {
+        val networkIO = for {
+          projectMetadataResponse <- IO.fromEither(projectMetadataRequest(vpcConfig).map(_.executeAsync().get())).handleErrorWith {
+            e => IO.raiseError(new RuntimeException(s"Failed to get metadata for project: ${createPipelineParameters.projectId} from Google Cloud Resource Manager API. " +
+              s"Errors: ${ExceptionUtils.getMessage(e)}"))
+          }
+          _ = println(projectMetadataResponse)
+          projectLabels <- projectMetadataResponseToLabels(projectMetadataResponse)
+          networkLabels <- IO.fromEither(networkLabels(vpcConfig, projectLabels)).handleErrorWith {
+            e => IO.raiseError(new RuntimeException(s"Failed to extract labels containing network information from metadata for project: ${createPipelineParameters.projectId}. " +
+              s"Errors: ${ExceptionUtils.getMessage(e)}"))
+          }
+        } yield networkLabels
+
+        networkIO.unsafeRunSync()
+      }
+
+
+      def createNetwork(): Network = {
+        createPipelineParameters.virtualPrivateCloudConfiguration match {
+          case None =>
+            new Network().setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
+          case Some(vpcConfig) =>
+            createNetworkWithVPC(vpcConfig)
+        }
+      }
 
       // Disks defined in the runtime attributes
       val disks = createPipelineParameters |> toDisks
@@ -143,14 +180,12 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
           ).asJava
         )
 
-      val network = new Network()
-        .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
-
-//      val vpc = getThatNow(network)
-
       println("---------- ENTERING THAT PHASE -----------")
-      val vpc = abc()
-      println(vpc.parseAsString())
+      val network: Network = IO(createNetwork()).handleErrorWith {
+        e => IO.raiseError(new RuntimeException(s"Failed to create Network object for project: ${createPipelineParameters.projectId}. Error: ${ExceptionUtils.getMessage(e)}"))
+      }.unsafeRunSync()
+
+      println(network)
 
       val accelerators = createPipelineParameters.runtimeAttributes
         .gpuResource.map(toAccelerator).toList.asJava
@@ -234,4 +269,4 @@ object GenomicsFactory {
   val MonitoringWrite = "https://www.googleapis.com/auth/monitoring.write"
 }
 
-case class NetworkLabels(labels: Map[String, String])
+case class ProjectLabels(labels: Map[String, String])

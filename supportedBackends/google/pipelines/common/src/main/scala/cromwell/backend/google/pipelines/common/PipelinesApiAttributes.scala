@@ -13,6 +13,7 @@ import cromwell.backend.google.pipelines.common.PipelinesApiAttributes.{Localiza
 import cromwell.backend.google.pipelines.common.authentication.PipelinesApiAuths
 import cromwell.backend.google.pipelines.common.callcaching.{CopyCachedOutputs, PipelinesCacheHitDuplicationStrategy, UseOriginalCachedOutputs}
 import cromwell.cloudsupport.gcp.GoogleConfiguration
+import cromwell.cloudsupport.gcp.auth.GoogleAuthMode
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.numeric.Positive
 import eu.timepit.refined.{refineMV, refineV}
@@ -34,7 +35,7 @@ case class PipelinesApiAttributes(project: String,
                                   requestWorkers: Int Refined Positive,
                                   logFlushPeriod: Option[FiniteDuration],
                                   localizationConfiguration: LocalizationConfiguration,
-                                  virtualPrivateCloudConfiguration: VirtualPrivateCloudConfiguration)
+                                  virtualPrivateCloudConfiguration: Option[VirtualPrivateCloudConfiguration])
 
 object PipelinesApiAttributes {
 
@@ -44,7 +45,7 @@ object PipelinesApiAttributes {
     */
   case class LocalizationConfiguration(localizationAttempts: Int Refined Positive)
 
-  case class VirtualPrivateCloudConfiguration(name: Option[String], subnetwork: Option[String])
+  case class VirtualPrivateCloudConfiguration(name: String, subnetwork: Option[String], auth: GoogleAuthMode)
 
   lazy val Logger = LoggerFactory.getLogger("JesAttributes")
 
@@ -82,8 +83,9 @@ object PipelinesApiAttributes {
     "default-runtime-attributes.preemptible",
     "default-runtime-attributes.zones",
     "virtual-private-cloud",
-    "virtual-private-cloud.name",
-    "virtual-private-cloud.subnetwork"
+    "virtual-private-cloud.network-label-key",
+    "virtual-private-cloud.subnetwork-label-key",
+    "virtual-private-cloud.auth"
   )
 
   private val deprecatedJesKeys: Map[String, String] = Map(
@@ -93,6 +95,21 @@ object PipelinesApiAttributes {
   private val context = "Jes"
 
   def apply(googleConfig: GoogleConfiguration, backendConfig: Config): PipelinesApiAttributes = {
+
+    def validateVPCConfig(networkOption: Option[String], subnetworkOption: Option[String], authOption: Option[String]): ErrorOr[Option[VirtualPrivateCloudConfiguration]] = {
+      (networkOption, subnetworkOption, authOption) match {
+        case (Some(network), _, Some(auth)) => {
+          googleConfig.auth(auth) match {
+            case Valid(validAuth) => Option(VirtualPrivateCloudConfiguration(network, subnetworkOption, validAuth)).validNel
+            case Invalid(e) => s"Auth $auth is not valid for VPC configuration. Reason: ${e.toString()}" .invalidNel
+          }
+        }
+        case (Some(_), _, None) => "Auth scheme not provided for VPC configuration".invalidNel
+        case (None, Some(_), _) | (None, _, Some(_)) => "Network label key not provided for VPC configuration".invalidNel
+        case (None, None, None) => None.validNel
+      }
+    }
+
     val configKeys = backendConfig.entrySet().asScala.toSet map { entry: java.util.Map.Entry[String, ConfigValue] => entry.getKey }
     warnNotRecognized(configKeys, jesKeys, context, Logger)
 
@@ -132,11 +149,13 @@ object PipelinesApiAttributes {
         .map(_.map(LocalizationConfiguration.apply))
         .getOrElse(LocalizationConfiguration(DefaultLocalizationAttempts).validNel)
 
-    //TODO: Saloni-simplify this please!!
-    val virtualPrivateCloudConfiguration: ErrorOr[VirtualPrivateCloudConfiguration] = {
-      (validate { backendConfig.getAs[String]("virtual-private-cloud.name")},
-        validate { backendConfig.getAs[String]("virtual-private-cloud.name")}) mapN {
-        case (name, subnetwork) => VirtualPrivateCloudConfiguration(name, subnetwork)
+    val vpcNetworkLabel: ErrorOr[Option[String]] = validate { backendConfig.getAs[String]("virtual-private-cloud.network-label-key") }
+    val vpcSubnetworkLabel: ErrorOr[Option[String]] = validate { backendConfig.getAs[String]("virtual-private-cloud.subnetwork-label-key")}
+    val vpcAuth: ErrorOr[Option[String]] = validate { backendConfig.getAs[String]("virtual-private-cloud.auth")}
+
+    val virtualPrivateCloudConfiguration: ErrorOr[Option[VirtualPrivateCloudConfiguration]] = {
+      (vpcNetworkLabel, vpcSubnetworkLabel, vpcAuth) flatMapN  {
+        case (network, subnetwork, auth) => validateVPCConfig(network, subnetwork, auth)
       }
     }
 
@@ -151,7 +170,7 @@ object PipelinesApiAttributes {
                                          cachingStrategy: PipelinesCacheHitDuplicationStrategy,
                                          requestWorkers: Int Refined Positive,
                                          localizationConfiguration: LocalizationConfiguration,
-                                         virtualPrivateCloudConfiguration: VirtualPrivateCloudConfiguration): ErrorOr[PipelinesApiAttributes] =
+                                         virtualPrivateCloudConfiguration: Option[VirtualPrivateCloudConfiguration]): ErrorOr[PipelinesApiAttributes] =
       (googleConfig.auth(genomicsName), googleConfig.auth(gcsName)) mapN {
         (genomicsAuth, gcsAuth) =>
           PipelinesApiAttributes(

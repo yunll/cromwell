@@ -76,7 +76,7 @@ object PipelinesApiRequestFactory {
                                       privateDockerKeyAndEncryptedToken: Option[CreatePipelineDockerKeyAndToken],
                                       womOutputRuntimeExtractor: Option[WomOutputRuntimeExtractor],
                                       adjustedSizeDisks: Seq[PipelinesApiAttachedDisk],
-                                      virtualPrivateCloudConfiguration: VirtualPrivateCloudConfiguration) {
+                                      virtualPrivateCloudConfiguration: Option[VirtualPrivateCloudConfiguration]) {
     def literalInputs = inputOutputParameters.literalInputParameters
     def inputParameters = inputOutputParameters.fileInputParameters
     def outputParameters = inputOutputParameters.fileOutputParameters
