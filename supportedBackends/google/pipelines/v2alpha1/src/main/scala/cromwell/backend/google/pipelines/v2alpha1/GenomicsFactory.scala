@@ -67,11 +67,9 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
         val googleCredentialOption = vpcConfig.auth.apiClientGoogleCredential((key: String) => workflowOptions.get(key).get)
 
         googleCredentialOption match {
-          case None => Left(new RuntimeException(s"Unable to find credentials for auth ${vpcConfig.auth.name}."))
+          case None => Left(new RuntimeException(s"Unable to find credentials for auth `${vpcConfig.auth.name}`."))
           case Some(googleCredential) => {
             val auth = googleCredential.createScoped(ResourceManagerAuthScopes)
-
-            println(auth)
 
             val cloudResourceManagerBuilder = new CloudResourceManager
               .Builder(GoogleAuthMode.httpTransport, GoogleAuthMode.jsonFactory, auth)
@@ -87,33 +85,23 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
 
       def projectMetadataResponseToLabels(httpResponse: HttpResponse): IO[ProjectLabels] = {
         IO.fromEither(decode[ProjectLabels](httpResponse.parseAsString())).handleErrorWith {
-          e => IO.raiseError(new RuntimeException(s"Failed to parse the labels from project metadata response from Google Cloud Resource Manager API. " +
-            s"Error: ${ExceptionUtils.getMessage(e)}"))
+          e => IO.raiseError(new RuntimeException(s"Failed to parse labels from project metadata response from Google Cloud Resource Manager API. " +
+            s"${ExceptionUtils.getMessage(e)}"))
         }
       }
 
 
       def networkLabels(vpcConfig: VirtualPrivateCloudConfiguration, projectLabels: ProjectLabels): Either[Throwable, Network] = {
         val networkLabelOption = projectLabels.labels.find(l => l._1.equals(vpcConfig.name))
-        val subnetworkLabelOption = vpcConfig.subnetwork.flatMap { subnetworkKey =>
-          projectLabels.labels.find(l => l._1.equals(subnetworkKey))
-        }
 
-        (networkLabelOption, subnetworkLabelOption) match {
-          case (Some(networkLabel), Some(subnetworkLabel)) => {
-            Right(new Network()
-              .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
-              .setName(VirtualPrivateCloudNetworkPath.format(createPipelineParameters.projectId, networkLabel._2))
-              .setSubnetwork(subnetworkLabel._2))
-          }
-          case (Some(networkLabel), None) =>
+        networkLabelOption match {
+          case Some(networkLabel) => {
             Right(new Network()
               .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
               .setName(VirtualPrivateCloudNetworkPath.format(createPipelineParameters.projectId, networkLabel._2)))
-          case (None, Some(_)) =>
-            Left(new RuntimeException(s"Project metadata does not have network label: ${vpcConfig.name}."))
-          case (None, None) =>
-            Left(new RuntimeException(s"Project metadata does not have network label: ${vpcConfig.name} nor subnetwork label."))
+          }
+          case None =>
+             Left(new RuntimeException(s"Project metadata does not have network label key `${vpcConfig.name}`."))
         }
       }
 
@@ -121,14 +109,14 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
       def createNetworkWithVPC(vpcConfig: VirtualPrivateCloudConfiguration): Network = {
         val networkIO = for {
           projectMetadataResponse <- IO.fromEither(projectMetadataRequest(vpcConfig).map(_.executeAsync().get())).handleErrorWith {
-            e => IO.raiseError(new RuntimeException(s"Failed to get metadata for project: ${createPipelineParameters.projectId} from Google Cloud Resource Manager API. " +
-              s"Errors: ${ExceptionUtils.getMessage(e)}"))
+            e => IO.raiseError(new RuntimeException(s"Failed to get metadata for the project from Google Cloud Resource Manager API. " +
+              s"${ExceptionUtils.getMessage(e)}"))
           }
           _ = println(projectMetadataResponse)
           projectLabels <- projectMetadataResponseToLabels(projectMetadataResponse)
           networkLabels <- IO.fromEither(networkLabels(vpcConfig, projectLabels)).handleErrorWith {
-            e => IO.raiseError(new RuntimeException(s"Failed to extract labels containing network information from metadata for project: ${createPipelineParameters.projectId}. " +
-              s"Errors: ${ExceptionUtils.getMessage(e)}"))
+            e => IO.raiseError(new RuntimeException(s"Failed to extract labels containing network information from metadata for the project. " +
+              s"${ExceptionUtils.getMessage(e)}"))
           }
         } yield networkLabels
 
@@ -182,7 +170,8 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
 
       println("---------- ENTERING THAT PHASE -----------")
       val network: Network = IO(createNetwork()).handleErrorWith {
-        e => IO.raiseError(new RuntimeException(s"Failed to create Network object for project: ${createPipelineParameters.projectId}. Error: ${ExceptionUtils.getMessage(e)}"))
+        e => IO.raiseError(new RuntimeException(s"Failed to create Pipelines API request. Unable to create Network object for project `${createPipelineParameters.projectId}`. " +
+          s"Error(s): ${ExceptionUtils.getMessage(e)}"))
       }.unsafeRunSync()
 
       println(network)

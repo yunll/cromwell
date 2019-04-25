@@ -45,7 +45,7 @@ object PipelinesApiAttributes {
     */
   case class LocalizationConfiguration(localizationAttempts: Int Refined Positive)
 
-  case class VirtualPrivateCloudConfiguration(name: String, subnetwork: Option[String], auth: GoogleAuthMode)
+  case class VirtualPrivateCloudConfiguration(name: String, auth: GoogleAuthMode)
 
   lazy val Logger = LoggerFactory.getLogger("JesAttributes")
 
@@ -84,7 +84,6 @@ object PipelinesApiAttributes {
     "default-runtime-attributes.zones",
     "virtual-private-cloud",
     "virtual-private-cloud.network-label-key",
-    "virtual-private-cloud.subnetwork-label-key",
     "virtual-private-cloud.auth"
   )
 
@@ -96,17 +95,16 @@ object PipelinesApiAttributes {
 
   def apply(googleConfig: GoogleConfiguration, backendConfig: Config): PipelinesApiAttributes = {
 
-    def validateVPCConfig(networkOption: Option[String], subnetworkOption: Option[String], authOption: Option[String]): ErrorOr[Option[VirtualPrivateCloudConfiguration]] = {
-      (networkOption, subnetworkOption, authOption) match {
-        case (Some(network), _, Some(auth)) => {
+    def validateVPCConfig(networkOption: Option[String], authOption: Option[String]): ErrorOr[Option[VirtualPrivateCloudConfiguration]] = {
+      (networkOption, authOption) match {
+        case (Some(network), Some(auth)) => {
           googleConfig.auth(auth) match {
-            case Valid(validAuth) => Option(VirtualPrivateCloudConfiguration(network, subnetworkOption, validAuth)).validNel
+            case Valid(validAuth) => Option(VirtualPrivateCloudConfiguration(network, validAuth)).validNel
             case Invalid(e) => s"Auth $auth is not valid for VPC configuration. Reason: ${e.toString()}" .invalidNel
           }
         }
-        case (Some(_), _, None) => "Auth scheme not provided for VPC configuration".invalidNel
-        case (None, Some(_), _) | (None, _, Some(_)) => "Network label key not provided for VPC configuration".invalidNel
-        case (None, None, None) => None.validNel
+        case (Some(_), None) => "Auth scheme not provided for VPC configuration".invalidNel
+        case (None, _) => "Network label key not provided for VPC configuration".invalidNel
       }
     }
 
@@ -150,12 +148,11 @@ object PipelinesApiAttributes {
         .getOrElse(LocalizationConfiguration(DefaultLocalizationAttempts).validNel)
 
     val vpcNetworkLabel: ErrorOr[Option[String]] = validate { backendConfig.getAs[String]("virtual-private-cloud.network-label-key") }
-    val vpcSubnetworkLabel: ErrorOr[Option[String]] = validate { backendConfig.getAs[String]("virtual-private-cloud.subnetwork-label-key")}
     val vpcAuth: ErrorOr[Option[String]] = validate { backendConfig.getAs[String]("virtual-private-cloud.auth")}
 
     val virtualPrivateCloudConfiguration: ErrorOr[Option[VirtualPrivateCloudConfiguration]] = {
-      (vpcNetworkLabel, vpcSubnetworkLabel, vpcAuth) flatMapN  {
-        case (network, subnetwork, auth) => validateVPCConfig(network, subnetwork, auth)
+      (vpcNetworkLabel, vpcAuth) flatMapN  {
+        case (network, auth) => validateVPCConfig(network, auth)
       }
     }
 
