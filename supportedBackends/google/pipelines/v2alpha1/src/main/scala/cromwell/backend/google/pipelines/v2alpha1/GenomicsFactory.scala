@@ -61,14 +61,14 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
 
     override def runRequest(createPipelineParameters: CreatePipelineParameters, jobLogger: JobLogger): HttpRequest = {
 
-      def projectMetadataRequest(vpcConfig: VirtualPrivateCloudConfiguration): Either[Throwable, HttpRequest] = {
+      def projectMetadataRequest(vpcConfig: VirtualPrivateCloudConfiguration): IO[HttpRequest] = {
         val workflowOptions = createPipelineParameters.jobDescriptor.workflowDescriptor.workflowOptions
 
         val googleCredentialOption = vpcConfig.auth.apiClientGoogleCredential((key: String) => workflowOptions.get(key).get)
 
         googleCredentialOption match {
-          case None => Left(new RuntimeException(s"Unable to find credentials for auth `${vpcConfig.auth.name}`."))
-          case Some(googleCredential) => {
+          case None => IO.raiseError(new RuntimeException(s"Unable to find Google Credential for auth `${vpcConfig.auth.name}`."))
+          case Some(googleCredential) => IO {
             val auth = googleCredential.createScoped(ResourceManagerAuthScopes)
 
             val cloudResourceManagerBuilder = new CloudResourceManager
@@ -77,7 +77,7 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
 
             val project = cloudResourceManagerBuilder.projects().get(createPipelineParameters.projectId)
 
-            Right(project.buildHttpRequest())
+            project.buildHttpRequest()
           }
         }
       }
@@ -86,41 +86,32 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
       def projectMetadataResponseToLabels(httpResponse: HttpResponse): IO[ProjectLabels] = {
         IO.fromEither(decode[ProjectLabels](httpResponse.parseAsString())).handleErrorWith {
           e => IO.raiseError(new RuntimeException(s"Failed to parse labels from project metadata response from Google Cloud Resource Manager API. " +
-            s"${ExceptionUtils.getMessage(e)}"))
+            s"${ExceptionUtils.getMessage(e)}", e))
         }
       }
 
 
-      def networkLabels(vpcConfig: VirtualPrivateCloudConfiguration, projectLabels: ProjectLabels): Either[Throwable, Network] = {
+      def networkLabels(vpcConfig: VirtualPrivateCloudConfiguration, projectLabels: ProjectLabels): IO[Network] = {
         val networkLabelOption = projectLabels.labels.find(l => l._1.equals(vpcConfig.name))
 
         networkLabelOption match {
-          case Some(networkLabel) => {
-            Right(new Network()
+          case Some(networkLabel) => IO {
+            new Network()
               .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
-              .setName(VirtualPrivateCloudNetworkPath.format(createPipelineParameters.projectId, networkLabel._2)))
+              .setName(VirtualPrivateCloudNetworkPath.format(createPipelineParameters.projectId, networkLabel._2))
           }
           case None =>
-             Left(new RuntimeException(s"Project metadata does not have network label key `${vpcConfig.name}`."))
+             IO.raiseError(new RuntimeException(s"Unable to extract labels containing network information. Project metadata does not have network label key `${vpcConfig.name}`."))
         }
       }
 
 
-      def createNetworkWithVPC(vpcConfig: VirtualPrivateCloudConfiguration): Network = {
-        val networkIO = for {
-          projectMetadataResponse <- IO.fromEither(projectMetadataRequest(vpcConfig).map(_.executeAsync().get())).handleErrorWith {
-            e => IO.raiseError(new RuntimeException(s"Failed to get metadata for the project from Google Cloud Resource Manager API. " +
-              s"${ExceptionUtils.getMessage(e)}"))
-          }
-          _ = println(projectMetadataResponse)
+      def createNetworkWithVPC(vpcConfig: VirtualPrivateCloudConfiguration): IO[Network] = {
+        for {
+          projectMetadataResponse <- projectMetadataRequest(vpcConfig).map(_.executeAsync().get())
           projectLabels <- projectMetadataResponseToLabels(projectMetadataResponse)
-          networkLabels <- IO.fromEither(networkLabels(vpcConfig, projectLabels)).handleErrorWith {
-            e => IO.raiseError(new RuntimeException(s"Failed to extract labels containing network information from metadata for the project. " +
-              s"${ExceptionUtils.getMessage(e)}"))
-          }
+          networkLabels <- networkLabels(vpcConfig, projectLabels)
         } yield networkLabels
-
-        networkIO.unsafeRunSync()
       }
 
 
@@ -128,8 +119,12 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
         createPipelineParameters.virtualPrivateCloudConfiguration match {
           case None =>
             new Network().setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
-          case Some(vpcConfig) =>
-            createNetworkWithVPC(vpcConfig)
+          case Some(vpcConfig) => {
+            createNetworkWithVPC(vpcConfig).handleErrorWith {
+              e => IO.raiseError(new RuntimeException(s"Failed to create Network object for project `${createPipelineParameters.projectId}`. " +
+                s"Error(s): ${ExceptionUtils.getMessage(e)}", e))
+            }.unsafeRunSync()
+          }
         }
       }
 
@@ -168,13 +163,7 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
           ).asJava
         )
 
-      println("---------- ENTERING THAT PHASE -----------")
-      val network: Network = IO(createNetwork()).handleErrorWith {
-        e => IO.raiseError(new RuntimeException(s"Failed to create Pipelines API request. Unable to create Network object for project `${createPipelineParameters.projectId}`. " +
-          s"Error(s): ${ExceptionUtils.getMessage(e)}"))
-      }.unsafeRunSync()
-
-      println(network)
+      val network: Network = createNetwork()
 
       val accelerators = createPipelineParameters.runtimeAttributes
         .gpuResource.map(toAccelerator).toList.asJava

@@ -12,7 +12,7 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
 
   import PipelinesApiTestConfig._
 
-  behavior of "JesAttributes"
+  behavior of "PapiAttributes"
 
   val googleConfig = GoogleConfiguration(PapiGlobalConfig)
   val runtimeConfig = ConfigFactory.load()
@@ -63,6 +63,14 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
 
   }
 
+  it should "parse virtual-private-cloud" taggedAs IntegrationTest in {
+    val backendConfig = ConfigFactory.parseString(configString(networkLabelKey = "network-label-key = my-network", vpcAuth = "auth = application-default"))
+
+    val pipelinesApiAttributes = PipelinesApiAttributes(googleConfig, backendConfig)
+    pipelinesApiAttributes.virtualPrivateCloudConfiguration.get.name should be("my-network")
+    pipelinesApiAttributes.virtualPrivateCloudConfiguration.get.auth.name should be("application-default")
+  }
+
   it should "not parse invalid config" taggedAs IntegrationTest in {
     val nakedConfig =
       ConfigFactory.parseString(
@@ -85,12 +93,54 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
     errorsList should contain("String: 2: genomics.endpoint-url has type String rather than java.net.URL")
   }
 
-  def configString(preemptible: String = "", genomics: String = ""): String =
+  it should "not parse invalid virtual-private-cloud config with auth" taggedAs IntegrationTest in {
+    val nakedConfig =
+      ConfigFactory.parseString(
+        """
+          |{
+          |   virtual-private-cloud {
+          |     network-label-key = "my-network"
+          |   }
+          |}
+        """.stripMargin)
+
+    val exception = intercept[IllegalArgumentException with MessageAggregation] {
+      PipelinesApiAttributes(googleConfig, nakedConfig)
+    }
+    val errorsList = exception.errorMessages.toList
+    errorsList should contain("Auth scheme not provided for Virtual Private Cloud configuration.")
+  }
+
+  it should "not parse invalid virtual-private-cloud config with network label key" taggedAs IntegrationTest in {
+    val nakedConfig =
+      ConfigFactory.parseString(
+        """
+          |{
+          |   virtual-private-cloud {
+          |     auth = "application-default"
+          |   }
+          |}
+        """.stripMargin)
+
+    val exception = intercept[IllegalArgumentException with MessageAggregation] {
+      PipelinesApiAttributes(googleConfig, nakedConfig)
+    }
+    val errorsList = exception.errorMessages.toList
+    errorsList should contain("Network label key not provided for Virtual Private Cloud configuration.")
+  }
+
+  def configString(preemptible: String = "", genomics: String = "", networkLabelKey: String = "", vpcAuth: String = ""): String =
     s"""
       |{
       |   project = "myProject"
       |   root = "gs://myBucket"
       |   maximum-polling-interval = 600
+      |
+      |   virtual-private-cloud {
+      |     $networkLabelKey
+      |     $vpcAuth
+      |   }
+      |
       |   $preemptible
       |   genomics {
       |     // A reference to an auth defined in the `google` stanza at the top.  This auth is used to create

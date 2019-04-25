@@ -100,11 +100,12 @@ object PipelinesApiAttributes {
         case (Some(network), Some(auth)) => {
           googleConfig.auth(auth) match {
             case Valid(validAuth) => Option(VirtualPrivateCloudConfiguration(network, validAuth)).validNel
-            case Invalid(e) => s"Auth $auth is not valid for VPC configuration. Reason: ${e.toString()}" .invalidNel
+            case Invalid(e) => s"Auth $auth is not valid for Virtual Private Cloud configuration. Reason: ${e.toString()}" .invalidNel
           }
         }
-        case (Some(_), None) => "Auth scheme not provided for VPC configuration".invalidNel
-        case (None, _) => "Network label key not provided for VPC configuration".invalidNel
+        case (Some(_), None) => "Auth scheme not provided for Virtual Private Cloud configuration.".invalidNel
+        case (None, Some(_)) => "Network label key not provided for Virtual Private Cloud configuration.".invalidNel
+        case (None, None) => None.validNel
       }
     }
 
