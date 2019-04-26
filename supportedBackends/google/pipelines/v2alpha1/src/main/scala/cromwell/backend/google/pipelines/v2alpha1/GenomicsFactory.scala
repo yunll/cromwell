@@ -100,8 +100,7 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
               .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
               .setName(VirtualPrivateCloudNetworkPath.format(createPipelineParameters.projectId, networkLabel._2))
           }
-          case None =>
-             IO.raiseError(new RuntimeException(s"Unable to extract labels containing network information. Project metadata does not have network label key `${vpcConfig.name}`."))
+          case None => IO.raiseError(new RuntimeException(s"Unable to extract labels containing network information. Project metadata does not have network label key `${vpcConfig.name}`."))
         }
       }
 
@@ -117,8 +116,7 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
 
       def createNetwork(): Network = {
         createPipelineParameters.virtualPrivateCloudConfiguration match {
-          case None =>
-            new Network().setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
+          case None => new Network().setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
           case Some(vpcConfig) => {
             createNetworkWithVPC(vpcConfig).handleErrorWith {
               e => IO.raiseError(new RuntimeException(s"Failed to create Network object for project `${createPipelineParameters.projectId}`. " +
