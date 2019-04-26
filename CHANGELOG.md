@@ -2,6 +2,11 @@
 
 ## 41 Release Notes
 
+### Virtual Private Network
+
+Cromwell now allows PAPIV2 jobs to run on a private network by adding network name inside `virtual-private-cloud` in config. More info [here](https://cromwell.readthedocs.io/en/stable/backends/Google/).
+
+
 ### Workflow Options
 
 * It is now possible to supply custom `google-labels` in [workflow options](https://cromwell.readthedocs.io/en/stable/wf_options/Google/).
