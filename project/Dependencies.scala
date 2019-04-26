@@ -31,6 +31,8 @@ object Dependencies {
   private val googleCloudNioV = "0.61.0-alpha"
   private val googleGenomicsServicesV1ApiV = "v1alpha2-rev495-1.23.0"
   private val googleGenomicsServicesV2ApiV = "v2alpha1-rev31-1.25.0"
+  private val googleHttpClientApacheV = "2.1.1"
+  private val googleHttpClientV = "1.29.1"
   private val googleOauth2V = "0.13.0"
   private val googleCloudResourceManagerV = "0.87.0-alpha"
   private val grpcV = "1.18.0"
@@ -539,6 +541,19 @@ object Dependencies {
   Older versions have known vulnerabilities, ex: CVE-2017-7525
    */
 
+  val googleHttpClientDependencies = List(
+    /*
+    Move the google-http-client versions past https://github.com/googleapis/google-http-java-client/issues/606
+    This created a situation where com/google/api/client/http/apache/ApacheHttpTransport.class was in *both*
+    transitive dependencies causing an assembly merge conflict.
+
+    At the time of this comment older versions are being pulled in via
+    https://mvnrepository.com/artifact/com.google.api-client/google-api-client/1.28.0
+     */
+    "com.google.http-client" % "google-http-client-apache" % googleHttpClientApacheV,
+    "com.google.http-client" % "google-http-client" % googleHttpClientV,
+  )
+
   val nettyDependencyOverrides = List(
     "buffer",
     "codec",
@@ -589,6 +604,7 @@ object Dependencies {
    */
   val cromwellDependencyOverrides =
     allProjectDependencies ++
+      googleHttpClientDependencies ++
       nettyDependencyOverrides ++
       rdf4jDependencyOverrides
 }
