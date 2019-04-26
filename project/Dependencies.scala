@@ -135,7 +135,7 @@ object Dependencies {
 
   val spiUtilDependencies = List(
     "com.iheart" %% "ficus" % ficusV,
-    "org.typelevel" %% "cats-effect" % catsEffectV,
+    "org.typelevel" %% "cats-effect" % catsEffectV
   )
 
   val implFtpDependencies = List(
