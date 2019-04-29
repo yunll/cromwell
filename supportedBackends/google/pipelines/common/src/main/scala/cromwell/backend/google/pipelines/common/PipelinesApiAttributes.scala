@@ -97,12 +97,11 @@ object PipelinesApiAttributes {
 
     def validateVPCConfig(networkOption: Option[String], authOption: Option[String]): ErrorOr[Option[VirtualPrivateCloudConfiguration]] = {
       (networkOption, authOption) match {
-        case (Some(network), Some(auth)) => {
+        case (Some(network), Some(auth)) =>
           googleConfig.auth(auth) match {
             case Valid(validAuth) => Option(VirtualPrivateCloudConfiguration(network, validAuth)).validNel
             case Invalid(e) => s"Auth $auth is not valid for Virtual Private Cloud configuration. Reason: ${e.toString()}" .invalidNel
           }
-        }
         case (Some(_), None) => "Auth scheme not provided for Virtual Private Cloud configuration.".invalidNel
         case (None, Some(_)) => "Network label key not provided for Virtual Private Cloud configuration.".invalidNel
         case (None, None) => None.validNel

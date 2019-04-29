@@ -50,7 +50,6 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
       .setRootUrl(endpointUrl.toString)
       .build
 
-
     override def cancelRequest(job: StandardAsyncJob) = {
       genomics.projects().operations().cancel(job.jobId, new CancelOperationRequest()).buildHttpRequest()
     }

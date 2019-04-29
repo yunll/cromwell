@@ -3,9 +3,8 @@ package cromwell.backend.google.pipelines.common
 import java.net.URL
 
 import com.typesafe.config.ConfigFactory
-import cromwell.cloudsupport.gcp.GoogleConfiguration
-import cromwell.core.Tags._
 import common.exception.MessageAggregation
+import cromwell.cloudsupport.gcp.GoogleConfiguration
 import org.scalatest.{FlatSpec, Matchers}
 
 class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
@@ -17,7 +16,7 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
   val googleConfig = GoogleConfiguration(PapiGlobalConfig)
   val runtimeConfig = ConfigFactory.load()
 
-  it should "parse correct PAPI config" taggedAs IntegrationTest in {
+  it should "parse correct PAPI config" in {
 
     val backendConfig = ConfigFactory.parseString(configString())
 
@@ -30,7 +29,7 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
     pipelinesApiAttributes.restrictMetadataAccess should be(false)
   }
 
-  it should "parse correct preemptible config" taggedAs IntegrationTest in {
+  it should "parse correct preemptible config" in {
     val backendConfig = ConfigFactory.parseString(configString(preemptible = "preemptible = 3"))
 
     val pipelinesApiAttributes = PipelinesApiAttributes(googleConfig, backendConfig)
@@ -40,14 +39,14 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
     pipelinesApiAttributes.maxPollingInterval should be(600)
   }
 
-  it should "parse compute service account" taggedAs IntegrationTest in {
+  it should "parse compute service account" in {
     val backendConfig = ConfigFactory.parseString(configString(genomics = """compute-service-account = "testing" """))
 
     val pipelinesApiAttributes = PipelinesApiAttributes(googleConfig, backendConfig)
     pipelinesApiAttributes.computeServiceAccount should be("testing")
   }
 
-  it should "parse restrict-metadata-access" taggedAs IntegrationTest in {
+  it should "parse restrict-metadata-access" in {
     val backendConfig = ConfigFactory.parseString(configString(genomics = "restrict-metadata-access = true"))
 
     val pipelinesApiAttributes = PipelinesApiAttributes(googleConfig, backendConfig)
@@ -55,7 +54,7 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
 
   }
 
-  it should "parse localization-attempts" taggedAs IntegrationTest in {
+  it should "parse localization-attempts" in {
     val backendConfig = ConfigFactory.parseString(configString(genomics = "localization-attempts = 31380"))
 
     val pipelinesApiAttributes = PipelinesApiAttributes(googleConfig, backendConfig)
@@ -63,7 +62,7 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
 
   }
 
-  it should "parse virtual-private-cloud" taggedAs IntegrationTest in {
+  it should "parse virtual-private-cloud" in {
     val backendConfig = ConfigFactory.parseString(configString(networkLabelKey = "network-label-key = my-network", vpcAuth = "auth = application-default"))
 
     val pipelinesApiAttributes = PipelinesApiAttributes(googleConfig, backendConfig)
@@ -71,7 +70,7 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
     pipelinesApiAttributes.virtualPrivateCloudConfiguration.get.auth.name should be("application-default")
   }
 
-  it should "not parse invalid config" taggedAs IntegrationTest in {
+  it should "not parse invalid config" in {
     val nakedConfig =
       ConfigFactory.parseString(
         """
@@ -93,7 +92,7 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
     errorsList should contain("String: 2: genomics.endpoint-url has type String rather than java.net.URL")
   }
 
-  it should "not parse invalid virtual-private-cloud config with auth" taggedAs IntegrationTest in {
+  it should "not parse invalid virtual-private-cloud config with auth" in {
     val nakedConfig =
       ConfigFactory.parseString(
         """
@@ -111,7 +110,7 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
     errorsList should contain("Auth scheme not provided for Virtual Private Cloud configuration.")
   }
 
-  it should "not parse invalid virtual-private-cloud config with network label key" taggedAs IntegrationTest in {
+  it should "not parse invalid virtual-private-cloud config with network label key" in {
     val nakedConfig =
       ConfigFactory.parseString(
         """
