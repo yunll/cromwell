@@ -12,6 +12,7 @@ task get_network {
 
   runtime {
     docker: "google/cloud-sdk:slim"
+    backend: "Papiv2-Virtual-Private-Cloud"
   }
 
   output {
@@ -19,7 +20,7 @@ task get_network {
   }
 }
 
-workflow run_on_vpc {
+workflow check_network_in_vpc {
   call get_network
 
    output {
