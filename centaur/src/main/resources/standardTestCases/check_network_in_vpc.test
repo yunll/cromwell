@@ -12,4 +12,6 @@ files {
 metadata {
   workflowName: run_on_vpc
   status: Succeeded
+
+  "outputs.run_on_vpc.network_used": "cromwell-ci-vpc-network"
 }
