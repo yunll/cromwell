@@ -1,8 +1,5 @@
 name: check_network_in_vpc
 testFormat: workflowsuccess
-workflowType: WDL
-workflowTypeVersion: 1.0
-tags: ["wdl_1.0"]
 backends: [Papiv2-Virtual-Private-Cloud]
 
 files {
