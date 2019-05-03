@@ -295,4 +295,4 @@ The `network-label-key` should reference the key in the label in your project, w
 ```
 
 Cromwell will get labels from the project's metadata and look for a label whose key is `my-private-network`. Then, it will use the value of the label, which is `vpc-network` here, as the name of private network and run the jobs on this network.
-If the network key is not present in metadata, Cromwell will fail the job with error similar to `Unable to extract labels containing network information. Project metadata does not have network label key <network-key>`.
+If the network key is not present in project's metadata, Cromwell will fail the job with error similar to `Unable to extract labels containing network information. Project metadata does not have network label key <network-key>`.
