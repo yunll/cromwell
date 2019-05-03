@@ -90,16 +90,18 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
       }
 
 
-      def networkLabels(vpcConfig: VirtualPrivateCloudConfiguration, projectLabels: ProjectLabels): IO[Network] = {
+      def networkFromLabels(vpcConfig: VirtualPrivateCloudConfiguration, projectLabels: ProjectLabels): Network = {
         val networkLabelOption = projectLabels.labels.find(l => l._1.equals(vpcConfig.name))
 
         networkLabelOption match {
-          case Some(networkLabel) => IO {
+          case Some(networkLabel) =>
             new Network()
               .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
               .setName(VirtualPrivateCloudNetworkPath.format(createPipelineParameters.projectId, networkLabel._2))
-          }
-          case None => IO.raiseError(new RuntimeException(s"Unable to extract labels containing network information. Project metadata does not have network label key `${vpcConfig.name}`."))
+          case None =>
+            jobLogger.debug(s"Project `${createPipelineParameters.projectId}` does not have high security network configured. " +
+              s"Project metadata does not have network label key `${vpcConfig.name}`. Falling back to running the job on default network.")
+            new Network().setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
         }
       }
 
@@ -108,7 +110,7 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
         for {
           projectMetadataResponse <- projectMetadataRequest(vpcConfig).map(_.executeAsync().get())
           projectLabels <- projectMetadataResponseToLabels(projectMetadataResponse)
-          networkLabels <- networkLabels(vpcConfig, projectLabels)
+          networkLabels <- IO(networkFromLabels(vpcConfig, projectLabels))
         } yield networkLabels
       }
 
