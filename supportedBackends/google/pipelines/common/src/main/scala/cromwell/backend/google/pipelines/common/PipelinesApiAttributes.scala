@@ -45,7 +45,7 @@ object PipelinesApiAttributes {
     */
   case class LocalizationConfiguration(localizationAttempts: Int Refined Positive)
 
-  case class VirtualPrivateCloudConfiguration(name: String, auth: GoogleAuthMode)
+  final case class VirtualPrivateCloudConfiguration(name: String, auth: GoogleAuthMode)
 
   lazy val Logger = LoggerFactory.getLogger("JesAttributes")
 

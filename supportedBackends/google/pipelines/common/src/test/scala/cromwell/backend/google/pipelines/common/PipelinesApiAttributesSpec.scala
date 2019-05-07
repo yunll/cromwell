@@ -92,8 +92,8 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
     errorsList should contain("String: 2: genomics.endpoint-url has type String rather than java.net.URL")
   }
 
-  it should "not parse invalid virtual-private-cloud config with auth" in {
-    val nakedConfig =
+  it should "not parse invalid virtual-private-cloud config without auth" in {
+    val networkKeyOnlyConfig =
       ConfigFactory.parseString(
         """
           |{
@@ -104,14 +104,14 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
         """.stripMargin)
 
     val exception = intercept[IllegalArgumentException with MessageAggregation] {
-      PipelinesApiAttributes(googleConfig, nakedConfig)
+      PipelinesApiAttributes(googleConfig, networkKeyOnlyConfig)
     }
     val errorsList = exception.errorMessages.toList
     errorsList should contain("Auth scheme not provided for Virtual Private Cloud configuration.")
   }
 
-  it should "not parse invalid virtual-private-cloud config with network label key" in {
-    val nakedConfig =
+  it should "not parse invalid virtual-private-cloud config without network label key" in {
+    val authOnlyConfig =
       ConfigFactory.parseString(
         """
           |{
@@ -122,7 +122,7 @@ class PipelinesApiAttributesSpec extends FlatSpec with Matchers {
         """.stripMargin)
 
     val exception = intercept[IllegalArgumentException with MessageAggregation] {
-      PipelinesApiAttributes(googleConfig, nakedConfig)
+      PipelinesApiAttributes(googleConfig, authOnlyConfig)
     }
     val errorsList = exception.errorMessages.toList
     errorsList should contain("Network label key not provided for Virtual Private Cloud configuration.")

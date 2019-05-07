@@ -37,7 +37,7 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
   with Delocalization {
 
   override def build(initializer: HttpRequestInitializer): PipelinesApiRequestFactory = new PipelinesApiRequestFactory {
-    implicit lazy val labelDecoder: Decoder[ProjectLabels] = deriveDecoder
+    implicit lazy val googleProjectMetadataLabelDecoder: Decoder[ProjectLabels] = deriveDecoder
 
     val ResourceManagerAuthScopes = List(GenomicsScopes.CLOUD_PLATFORM).asJava
     val VirtualPrivateCloudNetworkPath = "projects/%s/global/networks/%s/"
@@ -66,7 +66,7 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
         val googleCredentialOption = vpcConfig.auth.apiClientGoogleCredential((key: String) => workflowOptions.get(key).get)
 
         googleCredentialOption match {
-          case None => IO.raiseError(new RuntimeException(s"Unable to find Google Credential for auth `${vpcConfig.auth.name}`."))
+          case None => IO.raiseError(new RuntimeException(s"Programmer Error: Unable to find Google Credential for auth `${vpcConfig.auth.name}`."))
           case Some(googleCredential) => IO {
             val auth = googleCredential.createScoped(ResourceManagerAuthScopes)
 
@@ -99,8 +99,8 @@ case class GenomicsFactory(applicationName: String, authMode: GoogleAuthMode, en
               .setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
               .setName(VirtualPrivateCloudNetworkPath.format(createPipelineParameters.projectId, networkLabel._2))
           case None =>
-            jobLogger.debug(s"Project `${createPipelineParameters.projectId}` does not have high security network configured. " +
-              s"Project metadata does not have network label key `${vpcConfig.name}`. Falling back to running the job on default network.")
+            jobLogger.debug("Project `{}` does not have high security network configured. " +
+              "Project metadata does not have network label key `{}`. Falling back to running the job on default network.", createPipelineParameters.projectId: Any, vpcConfig.name: Any)
             new Network().setUsePrivateAddress(createPipelineParameters.runtimeAttributes.noAddress)
         }
       }
