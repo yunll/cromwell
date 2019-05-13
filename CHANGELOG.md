@@ -1,11 +1,15 @@
 # Cromwell Change Log
 
-## 41 Release Notes
+
+## 42 Release Notes
 
 ### Virtual Private Network
 
-Cromwell now allows PAPIV2 jobs to run on a private network by adding network name inside `virtual-private-cloud` in config. More info [here](https://cromwell.readthedocs.io/en/stable/backends/Google/).
+Cromwell now allows PAPIV2 jobs to run on a private network by adding the network name inside `virtual-private-cloud` in backend configuration.
+More info [here](https://cromwell.readthedocs.io/en/stable/backends/Google/).
 
+
+## 41 Release Notes
 
 ### Workflow Options
 

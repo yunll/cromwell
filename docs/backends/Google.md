@@ -265,7 +265,7 @@ This filesystem has two required configuration options:
 
 ### Virtual Private Network
 
-In PAPIV2, to run your jobs in private network add the `virtual-private-cloud` stanza in papiv2 section in `backend` stanza.
+To run your jobs in a private network add the `virtual-private-cloud` stanza in the `config` stanza of the PAPI v2 backend:
 
 ```
 backend {
@@ -288,11 +288,14 @@ backend {
 ```
 
 
-The `network-label-key` should reference the key in the label in your project, whose value is the name of your private network. And the `auth` should reference to an auth scheme in `google` stanza which should be used to request Google Cloud to get the project's metadata. For example, if your `virtual-private-cloud` config looks like the one above, and one of the labels in your project is
+The `network-label-key` should reference the key in the label in your project whose value is the name of your private network.
+ `auth` should reference an auth scheme in the `google` stanza which should be used to the project metadata from Google Cloud.
+For example, if your `virtual-private-cloud` config looks like the one above, and one of the labels in your project is
 
 ```
 "my-private-network" = "vpc-network"
 ```
 
-Cromwell will get labels from the project's metadata and look for a label whose key is `my-private-network`. Then, it will use the value of the label, which is `vpc-network` here, as the name of private network and run the jobs on this network.
-If the network key is not present in project's metadata, Cromwell will fall back to running the job on default network.
+Cromwell will get labels from the project's metadata and look for a label whose key is `my-private-network`.
+Then it will use the value of the label, which is `vpc-network` here, as the name of private network and run the jobs on this network.
+If the network key is not present in the project's metadata Cromwell will fall back to running jobs on the default network.
