@@ -121,7 +121,7 @@ trait WorkflowStoreSlickDatabase extends WorkflowStoreSqlDatabase {
       })
     } yield counts.sum
     // Auto-commit mode, so each statement is individually committed to avoid deadlocks
-    runTransaction(action)
+    runAction(action)
   }
 
   override def releaseWorkflowStoreEntries(cromwellId: String)(implicit ec: ExecutionContext): Future[Int] = {
