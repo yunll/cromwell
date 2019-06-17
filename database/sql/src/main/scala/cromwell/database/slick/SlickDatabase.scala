@@ -169,7 +169,10 @@ abstract class SlickDatabase(override val originalDatabaseConfig: Config) extend
     runActionInternal(action.transactionally.withTransactionIsolation(isolationLevel))
   }
 
-  // this should be avoided due to postgres large object issues
+  /* Note that this is only appropriate for actions that do not involve Blob
+   * or Clob fields in Postgres, since large object support requires running
+   * transactionally.
+   */
   protected[this] def runAction[R](action: DBIO[R]): Future[R] = {
     runActionInternal(action.withPinnedSession)
   }
