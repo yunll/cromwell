@@ -2,7 +2,6 @@ package cromwell.database.slick
 
 import java.sql.Timestamp
 
-import cats.data.NonEmptyList
 import com.typesafe.config.{Config, ConfigFactory}
 import cromwell.database.slick.tables.MetadataDataAccessComponent
 import cromwell.database.sql.MetadataSqlDatabase
@@ -88,29 +87,18 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
     runTransaction(action.map(withLargeObjects))
   }
 
-  override def queryMetadataEntriesLikeMetadataKeys(workflowExecutionUuid: String,
-                                                    metadataKeys: NonEmptyList[String],
+  override def queryMetadataEntryWithKeyConstraints(workflowExecutionUuid: String,
+                                                    metadataKeysToFilterFor: List[String],
+                                                    metadataKeysToFilterOut: List[String],
                                                     metadataJobQueryValue: MetadataJobQueryValue)
                                                    (implicit ec: ExecutionContext): Future[Seq[MetadataEntry]] = {
     val action = metadataJobQueryValue match {
       case CallQuery(callFqn, jobIndex, jobAttempt) =>
-        dataAccess.metadataEntriesLikeMetadataKeysWithJob(workflowExecutionUuid, metadataKeys, callFqn, jobIndex, jobAttempt).result
-      case WorkflowQuery => dataAccess.metadataEntriesLikeMetadataKeys(workflowExecutionUuid, metadataKeys, requireEmptyJobKey = true).result
-      case CallOrWorkflowQuery => dataAccess.metadataEntriesLikeMetadataKeys(workflowExecutionUuid, metadataKeys, requireEmptyJobKey = false).result
-    }
-
-    runTransaction(action.map(withLargeObjects))
-  }
-
-  override def queryMetadataEntryNotLikeMetadataKeys(workflowExecutionUuid: String,
-                                                     metadataKeys: NonEmptyList[String],
-                                                     metadataJobQueryValue: MetadataJobQueryValue)
-                                                    (implicit ec: ExecutionContext): Future[Seq[MetadataEntry]] = {
-    val action = metadataJobQueryValue match {
-      case CallQuery(callFqn, jobIndex, jobAttempt) =>
-        dataAccess.metadataEntriesNotLikeMetadataKeysWithJob(workflowExecutionUuid, metadataKeys, callFqn, jobIndex, jobAttempt).result
-      case WorkflowQuery => dataAccess.metadataEntriesNotLikeMetadataKeys(workflowExecutionUuid, metadataKeys, requireEmptyJobKey = true).result
-      case CallOrWorkflowQuery => dataAccess.metadataEntriesNotLikeMetadataKeys(workflowExecutionUuid, metadataKeys, requireEmptyJobKey = false).result
+        dataAccess.metadataEntriesForJobWithKeyConstraints(workflowExecutionUuid, metadataKeysToFilterFor, metadataKeysToFilterOut, callFqn, jobIndex, jobAttempt).result
+      case WorkflowQuery =>
+        dataAccess.metadataEntriesWithKeyConstraints(workflowExecutionUuid, metadataKeysToFilterFor, metadataKeysToFilterOut, requireEmptyJobKey = true).result
+      case CallOrWorkflowQuery =>
+        dataAccess.metadataEntriesWithKeyConstraints(workflowExecutionUuid, metadataKeysToFilterFor, metadataKeysToFilterOut, requireEmptyJobKey = false).result
     }
     runTransaction(action.map(withLargeObjects))
   }

@@ -1,6 +1,6 @@
 package cromwell.engine.workflow.workflowstore
 
-import java.time.{Instant, OffsetDateTime, ZoneId}
+import java.time.OffsetDateTime
 
 import cats.data.NonEmptyList
 import common.validation.ErrorOr.ErrorOr
@@ -61,6 +61,10 @@ case class SqlWorkflowStore(sqlDatabase: WorkflowStoreSqlDatabase) extends Workf
       case None =>
         WorkflowStoreAbortResponse.NotFound
     }
+  }
+
+  override def findWorkflows(cromwellId: String)(implicit ec: ExecutionContext): Future[Iterable[WorkflowId]] = {
+    sqlDatabase.findWorkflows(cromwellId) map { _ map WorkflowId.fromString }
   }
 
   override def findWorkflowsWithAbortRequested(cromwellId: String)(implicit ec: ExecutionContext): Future[Iterable[WorkflowId]] = {
@@ -154,10 +158,9 @@ case class SqlWorkflowStore(sqlDatabase: WorkflowStoreSqlDatabase) extends Workf
     )
 
     workflowStoreStateToStartableState(workflowStoreEntry) map { startableState =>
-      val instant = Instant.ofEpochMilli(workflowStoreEntry.submissionTime.getTime)
       WorkflowToStart(
         id = WorkflowId.fromString(workflowStoreEntry.workflowExecutionUuid),
-        submissionTime = OffsetDateTime.ofInstant(instant, ZoneId.of("UTC")),
+        submissionTime = workflowStoreEntry.submissionTime.toSystemOffsetDateTime,
         sources = sources,
         state = startableState)
     }
