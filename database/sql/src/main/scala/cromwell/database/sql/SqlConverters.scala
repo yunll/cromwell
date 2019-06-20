@@ -37,7 +37,7 @@ object SqlConverters {
   }
 
   implicit class StringOptionToClobOption(val strOption: Option[String]) extends AnyVal {
-    def toClobOption: Option[Clob] = strOption.flatMap(_.toClobOption)
+    def toClobOption: Option[SerialClob] = strOption.flatMap(_.toClobOption)
   }
 
   implicit class StringToClobOption(val str: String) extends AnyVal {
@@ -52,9 +52,9 @@ object SqlConverters {
     import eu.timepit.refined.api.Refined
     import eu.timepit.refined.collection.NonEmpty
 
-    def toClobOption: Option[Clob] = if (str.isEmpty) None else Option(new SerialClob(str.toCharArray))
+    def toClobOption: Option[SerialClob] = if (str.isEmpty) None else Option(new SerialClob(str.toCharArray))
 
-    def toClob(default: String Refined NonEmpty): Clob = {
+    def toClob(default: String Refined NonEmpty): SerialClob = {
       val nonEmpty = if (str.isEmpty) default.value else str
       new SerialClob(nonEmpty.toCharArray)
     }
@@ -79,11 +79,11 @@ object SqlConverters {
     https://github.com/apache/derby/blob/10.13/java/engine/org/apache/derby/iapi/types/HarmonySerialBlob.java#L111
     OK! -> https://github.com/arteam/hsqldb/blob/2.3.4/src/org/hsqldb/jdbc/JDBCBlob.java#L184
      */
-    def toBlobOption: Option[Blob] = bytesOption.flatMap(_.toBlobOption)
+    def toBlobOption: Option[SerialBlob] = bytesOption.flatMap(_.toBlobOption)
   }
 
   implicit class BytesToBlobOption(val bytes: Array[Byte]) extends AnyVal {
-    def toBlobOption: Option[Blob] = if (bytes.isEmpty) None else Option(new SerialBlob(bytes))
+    def toBlobOption: Option[SerialBlob] = if (bytes.isEmpty) None else Option(new SerialBlob(bytes))
   }
 
   implicit class EnhancedFiniteDuration(val duration: FiniteDuration) extends AnyVal {
