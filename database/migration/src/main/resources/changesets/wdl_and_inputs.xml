@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<databaseChangeLog objectQuotingStrategy="QUOTE_ALL_OBJECTS"
-                   xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.3.xsd">
 
     <property name="clob.type" value="LONGTEXT" dbms="mysql"/>
     <property name="clob.type" value="LONGVARCHAR" dbms="hsqldb"/>
-    <property name="clob.type" value="LONGTEXT" dbms="postgresql"/>
 
-    <changeSet author="mcovarr" id="WORKFLOW_EXECUTION_AUX">
-        <validCheckSum>7:c3d7a0fa00f017720fc68a6d8b4e5bf7</validCheckSum>
+    <changeSet author="mcovarr" id="WORKFLOW_EXECUTION_AUX" dbms="mysql,hsqldb">
         <comment>
             Auxiliary data related to a workflow execution not stored with the workflow execution itself
             for size reasons.
@@ -27,7 +24,7 @@
         </modifySql>
     </changeSet>
 
-    <changeSet author="mcovarr" id="WE_AUX_CONSTRAINTS">
+    <changeSet author="mcovarr" id="WE_AUX_CONSTRAINTS" dbms="mysql,hsqldb">
         <comment>
             This adds:
             A foreign key constraint from WORKFLOW_EXECUTION_ID to WORKFLOW_EXECUTION.WORKFLOW_EXECUTION_ID.

@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<databaseChangeLog objectQuotingStrategy="QUOTE_ALL_OBJECTS"
-                   xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.3.xsd">
 
     <property name="clob.type" value="LONGTEXT" dbms="mysql"/>
     <property name="clob.type" value="LONGVARCHAR" dbms="hsqldb"/>
-    <property name="clob.type" value="LONGTEXT" dbms="postgresql"/>
 
-    <changeSet author="chrisl" id="WORKFLOW_STORE">
-        <validCheckSum>7:1655e18826cf1d242664f6b261ab039e</validCheckSum>
+    <changeSet author="chrisl" id="WORKFLOW_STORE" dbms="mysql,hsqldb">
         <comment>
             Temporary storage area for workflows that are still in progress.
         </comment>
@@ -41,14 +38,14 @@
         </modifySql>
     </changeSet>
 
-    <changeSet author="kshakir" id="workflow_store_uuid_index">
+    <changeSet author="kshakir" id="workflow_store_uuid_index" dbms="mysql,hsqldb">
         <addUniqueConstraint
                 constraintName="WORKFLOW_STORE_UUID_IDX"
                 tableName="WORKFLOW_STORE"
                 columnNames="WORKFLOW_UUID" />
     </changeSet>
 
-    <changeSet author="chrisl" id="workflow_store_state_index">
+    <changeSet author="chrisl" id="workflow_store_state_index" dbms="mysql,hsqldb">
         <createIndex indexName="WORKFLOW_STORE_STATE_IDX"
                      tableName="WORKFLOW_STORE" unique="false">
             <column name="WORKFLOW_STATE"/>

@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<databaseChangeLog objectQuotingStrategy="QUOTE_ALL_OBJECTS"
-                   xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.3.xsd">
 
     <property name="clob.type" value="LONGTEXT" dbms="mysql"/>
     <property name="clob.type" value="LONGVARCHAR" dbms="hsqldb"/>
-    <property name="clob.type" value="LONGTEXT" dbms="postgresql"/>
 
-    <changeSet author="mcovarr" id="job_store_result_simpletons">
-        <validCheckSum>7:f253ebbcceb66abb2f25580d483214cf</validCheckSum>
+    <changeSet author="mcovarr" id="job_store_result_simpletons" dbms="mysql,hsqldb">
         <comment>
             One row per result simpleton in the job result.
             Simpleton: a single non-complex WDL value.
@@ -38,13 +35,13 @@
     </changeSet>
 
     <!-- Unlike the metadata journal, we never want to store the same simpleton key twice (for the same RESULT_METAINFO_ID) -->
-    <changeSet author="mcovarr" id="job_store_result_simpletons_uniqueness">
+    <changeSet author="mcovarr" id="job_store_result_simpletons_uniqueness" dbms="mysql,hsqldb">
         <addUniqueConstraint constraintName="UK_JOB_STORE_RESULT_SIMPLETON"
                              tableName="JOB_STORE_RESULT_SIMPLETON" columnNames="SIMPLETON_KEY, JOB_STORE_ID" />
     </changeSet>
 
     <!-- Make JOB_STORE_ID a FK into JOB_STORE -->
-    <changeSet author="mcovarr" id="job_store_result_simpletons_foreign_key">
+    <changeSet author="mcovarr" id="job_store_result_simpletons_foreign_key" dbms="mysql,hsqldb">
         <addForeignKeyConstraint constraintName="JSRS_JOB_STORE_FK"
                                  baseTableName="JOB_STORE_RESULT_SIMPLETON"
                                  baseColumnNames="JOB_STORE_ID"
@@ -54,7 +51,7 @@
         />
     </changeSet>
 
-    <changeSet id="job_store_remove_job_output" author="mcovarr">
+    <changeSet id="job_store_remove_job_output" author="mcovarr" dbms="mysql,hsqldb">
         <comment>
             There is no attempt at migrating the contents of JOB_STORE.JOB_OUTPUTS to simpletons, this just removes the column.
         </comment>
