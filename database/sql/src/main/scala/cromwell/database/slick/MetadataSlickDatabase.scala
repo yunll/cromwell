@@ -5,7 +5,6 @@ import java.sql.Timestamp
 import com.typesafe.config.{Config, ConfigFactory}
 import cromwell.database.slick.tables.MetadataDataAccessComponent
 import cromwell.database.sql.MetadataSqlDatabase
-import cromwell.database.sql.SqlTableConverters._
 import cromwell.database.sql.SqlConverters._
 import cromwell.database.sql.joins.{CallOrWorkflowQuery, CallQuery, MetadataJobQueryValue, WorkflowQuery}
 import cromwell.database.sql.tables.{CustomLabelEntry, MetadataEntry, WorkflowMetadataSummaryEntry}
@@ -24,9 +23,6 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
     with MetadataSqlDatabase
     with SummaryStatusSlickDatabase {
   override lazy val dataAccess = new MetadataDataAccessComponent(slickConfig.profile)
-
-  private def withLargeObjects(entries: Seq[MetadataEntry]): Seq[MetadataEntry] =
-    if (isPostgresql) entries.map(_.withLargeObjects) else entries
 
   import dataAccess.driver.api._
 
@@ -55,7 +51,7 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
   override def queryMetadataEntries(workflowExecutionUuid: String)
                                    (implicit ec: ExecutionContext): Future[Seq[MetadataEntry]] = {
     val action = dataAccess.metadataEntriesForWorkflowExecutionUuid(workflowExecutionUuid).result
-    runTransaction(action.map(withLargeObjects))
+    runTransaction(action)
   }
 
   override def queryMetadataEntries(workflowExecutionUuid: String,
@@ -63,7 +59,7 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
                                    (implicit ec: ExecutionContext): Future[Seq[MetadataEntry]] = {
     val action =
       dataAccess.metadataEntriesForWorkflowExecutionUuidAndMetadataKey((workflowExecutionUuid, metadataKey)).result
-    runTransaction(action.map(withLargeObjects))
+    runTransaction(action)
   }
 
   override def queryMetadataEntries(workflowExecutionUuid: String,
@@ -73,7 +69,7 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
                                    (implicit ec: ExecutionContext): Future[Seq[MetadataEntry]] = {
     val action = dataAccess.
       metadataEntriesForJobKey((workflowExecutionUuid, callFullyQualifiedName, jobIndex, jobAttempt)).result
-    runTransaction(action.map(withLargeObjects))
+    runTransaction(action)
   }
 
   override def queryMetadataEntries(workflowUuid: String,
@@ -84,7 +80,7 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
                                    (implicit ec: ExecutionContext): Future[Seq[MetadataEntry]] = {
     val action = dataAccess.metadataEntriesForJobKeyAndMetadataKey((
       workflowUuid, metadataKey, callFullyQualifiedName, jobIndex, jobAttempt)).result
-    runTransaction(action.map(withLargeObjects))
+    runTransaction(action)
   }
 
   override def queryMetadataEntryWithKeyConstraints(workflowExecutionUuid: String,
@@ -100,7 +96,7 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
       case CallOrWorkflowQuery =>
         dataAccess.metadataEntriesWithKeyConstraints(workflowExecutionUuid, metadataKeysToFilterFor, metadataKeysToFilterOut, requireEmptyJobKey = false).result
     }
-    runTransaction(action.map(withLargeObjects))
+    runTransaction(action)
   }
 
   private def updateWorkflowMetadataSummaryEntry(buildUpdatedWorkflowMetadataSummaryEntry:
@@ -138,7 +134,7 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
         updateCount <- dataAccess.
           customLabelEntriesForWorkflowExecutionUuidAndLabelKey(
             (customLabelEntry.workflowExecutionUuid, customLabelEntry.customLabelKey)
-          ).update(customLabelEntry.toUpdateColumns)
+          ).update(customLabelEntry)
         _ <- updateCount match {
           case 0 => dataAccess.customLabelEntryIdsAutoInc += customLabelEntry
           case _ => assertUpdateCount("upsertCustomLabelEntry", updateCount, 1)
@@ -156,8 +152,8 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
     } else {
       for {
         updateCount <- dataAccess.
-          workflowMetadataSummaryEntriesForWorkflowExecutionUuidTupled(workflowMetadataSummaryEntry.workflowExecutionUuid).
-          update(workflowMetadataSummaryEntry.toUpdateColumns)
+          workflowMetadataSummaryEntriesForWorkflowExecutionUuid(workflowMetadataSummaryEntry.workflowExecutionUuid).
+          update(workflowMetadataSummaryEntry)
         _ <- updateCount match {
           case 0 => dataAccess.workflowMetadataSummaryEntryIdsAutoInc += workflowMetadataSummaryEntry
           case _ => assertUpdateCount("upsertWorkflowMetadataSummaryEntry", updateCount, 1)

@@ -4,7 +4,7 @@ import java.sql.Timestamp
 
 import cats.instances.future._
 import cats.syntax.functor._
-import cromwell.database.sql.{WorkflowStoreSqlDatabase, SqlTableConverters}
+import cromwell.database.sql.WorkflowStoreSqlDatabase
 import cromwell.database.sql.tables.WorkflowStoreEntry
 import slick.jdbc.TransactionIsolation
 
@@ -14,7 +14,6 @@ trait WorkflowStoreSlickDatabase extends WorkflowStoreSqlDatabase {
   this: EngineSlickDatabase =>
 
   import dataAccess.driver.api._
-  import SqlTableConverters._
 
   override def setStateToState(fromWorkflowState: String, toWorkflowState: String)
                               (implicit ec: ExecutionContext): Future[Unit] = {
@@ -54,9 +53,6 @@ trait WorkflowStoreSlickDatabase extends WorkflowStoreSqlDatabase {
     val action = dataAccess.workflowStoreEntryIdsAutoInc ++= workflowStoreEntries
     runTransaction(action).void
   }
-
-  private def withLargeObjects(e: WorkflowStoreEntry): WorkflowStoreEntry =
-    if (isPostgresql) e.withLargeObjects else e
 
   override def fetchWorkflowsInState(limit: Int,
                                      cromwellId: String,
@@ -99,7 +95,7 @@ trait WorkflowStoreSlickDatabase extends WorkflowStoreSqlDatabase {
       _ <- DBIO.sequence(
         workflowStoreEntries map updateForFetched(cromwellId, heartbeatTimestampTo, workflowStateFrom, workflowStateTo)
       )
-    } yield workflowStoreEntries.map(withLargeObjects)
+    } yield workflowStoreEntries
 
     // This should be safe because there are no repeated reads and the same rows are being locked for update as with
     // the default RepeatableRead isolation. This has the advantage of avoiding MySQL's aggressive Serializable-ish

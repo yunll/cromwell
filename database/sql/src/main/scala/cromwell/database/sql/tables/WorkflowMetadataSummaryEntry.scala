@@ -13,6 +13,4 @@ case class WorkflowMetadataSummaryEntry
   parentWorkflowExecutionUuid: Option[String],
   rootWorkflowExecutionUuid: Option[String],
   workflowMetadataSummaryEntryId: Option[Long] = None
-) {
-  def toUpdateColumns = (workflowExecutionUuid, workflowName, workflowStatus, startTimestamp, endTimestamp, submissionTimestamp)
-}
+)

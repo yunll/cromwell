@@ -1,7 +1,6 @@
 package cromwell.database.slick
 
 import cromwell.database.sql.JobStoreSqlDatabase
-import cromwell.database.sql.SqlTableConverters
 import cromwell.database.sql.joins.JobStoreJoin
 import cromwell.database.sql.tables.JobStoreSimpletonEntry
 
@@ -11,7 +10,6 @@ trait JobStoreSlickDatabase extends JobStoreSqlDatabase {
   this: EngineSlickDatabase =>
 
   import dataAccess.driver.api._
-  import SqlTableConverters._
 
   override def addJobStores(jobStoreJoins: Seq[JobStoreJoin], batchSize: Int)
                            (implicit ec: ExecutionContext): Future[Unit] = {
@@ -34,9 +32,6 @@ trait JobStoreSlickDatabase extends JobStoreSqlDatabase {
     runTransaction(action)
   }
 
-  private def withLargeObjects(join: JobStoreJoin): JobStoreJoin =
-    if (isPostgresql) join.withLargeObjects else join
-
   override def queryJobStores(workflowExecutionUuid: String, callFqn: String, jobScatterIndex: Int,
                               jobScatterAttempt: Int)(implicit ec: ExecutionContext):
   Future[Option[JobStoreJoin]] = {
@@ -51,7 +46,7 @@ trait JobStoreSlickDatabase extends JobStoreSqlDatabase {
       }
     } yield jobStoreEntryOption.map(JobStoreJoin(_, jobStoreSimpletonEntries))
 
-    runTransaction(action.map(_.map(withLargeObjects)))
+    runTransaction(action)
   }
 
   override def removeJobStores(workflowExecutionUuids: Seq[String])

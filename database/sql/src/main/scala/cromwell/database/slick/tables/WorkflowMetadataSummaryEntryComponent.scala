@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import cats.data
 import cats.data.NonEmptyList
 import cromwell.database.sql.tables.WorkflowMetadataSummaryEntry
+import shapeless.syntax.std.tuple._
 import slick.jdbc.{GetResult, PositionedParameters, SQLActionBuilder}
 
 //noinspection SqlDialectInspection
@@ -13,6 +14,7 @@ trait WorkflowMetadataSummaryEntryComponent {
 
   this: DriverComponent with CustomLabelEntryComponent with MetadataEntryComponent =>
 
+  import driver.api.TupleMethods._
   import driver.api._
 
   class WorkflowMetadataSummaryEntries(tag: Tag)
@@ -35,9 +37,15 @@ trait WorkflowMetadataSummaryEntryComponent {
 
     def rootWorkflowExecutionUuid = column[Option[String]]("ROOT_WORKFLOW_EXECUTION_UUID", O.Length(100))
 
-    override def * = (workflowExecutionUuid, workflowName, workflowStatus, startTimestamp, endTimestamp,
-      submissionTimestamp, parentWorkflowExecutionUuid, rootWorkflowExecutionUuid,
-      workflowMetadataSummaryEntryId.?) <> (WorkflowMetadataSummaryEntry.tupled, WorkflowMetadataSummaryEntry.unapply)
+    def baseProjection = (workflowExecutionUuid, workflowName, workflowStatus, startTimestamp, endTimestamp,
+      submissionTimestamp, parentWorkflowExecutionUuid, rootWorkflowExecutionUuid)
+
+    override def * = baseProjection ~ workflowMetadataSummaryEntryId.? <> (WorkflowMetadataSummaryEntry.tupled, WorkflowMetadataSummaryEntry.unapply)
+
+    def forUpdate = baseProjection.shaped <> (
+      tuple => WorkflowMetadataSummaryEntry.tupled(tuple :+ None),
+      WorkflowMetadataSummaryEntry.unapply(_: WorkflowMetadataSummaryEntry).map(_.reverse.tail.reverse)
+    )
 
     def ucWorkflowMetadataSummaryEntryWeu =
       index("UC_WORKFLOW_METADATA_SUMMARY_ENTRY_WEU", workflowExecutionUuid, unique = true)
@@ -63,15 +71,7 @@ trait WorkflowMetadataSummaryEntryComponent {
     (workflowExecutionUuid: Rep[String]) => for {
       workflowMetadataSummaryEntry <- workflowMetadataSummaryEntries
       if workflowMetadataSummaryEntry.workflowExecutionUuid === workflowExecutionUuid
-    } yield workflowMetadataSummaryEntry)
-
-  // workaround for slick+postgres+autoincrement behavior
-  val workflowMetadataSummaryEntriesForWorkflowExecutionUuidTupled = Compiled(
-    (workflowExecutionUuid: Rep[String]) => for {
-      e <- workflowMetadataSummaryEntries
-      if e.workflowExecutionUuid === workflowExecutionUuid
-    } yield (e.workflowExecutionUuid, e.workflowName, e.workflowStatus, e.startTimestamp, e.endTimestamp, e.submissionTimestamp)
-  )
+    } yield workflowMetadataSummaryEntry.forUpdate)
 
   val workflowMetadataSummaryEntryExistsForWorkflowExecutionUuid = Compiled(
     (workflowExecutionUuid: Rep[String]) => (for {

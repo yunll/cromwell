@@ -6,6 +6,4 @@ case class CustomLabelEntry
   customLabelValue: String,
   workflowExecutionUuid: String,
   customLabelEntryId: Option[Long] = None
-) {
-  def toUpdateColumns = (customLabelKey, customLabelValue, workflowExecutionUuid)
-}
+)
