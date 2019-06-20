@@ -170,10 +170,18 @@ abstract class SlickDatabase(override val originalDatabaseConfig: Config) extend
 
   /* Note that this is only appropriate for actions that do not involve Blob
    * or Clob fields in Postgres, since large object support requires running
-   * transactionally.
+   * transactionally.  Use runLobAction instead, which will still run in
+   * auto-commit mode when using other database engines.
    */
   protected[this] def runAction[R](action: DBIO[R]): Future[R] = {
     runActionInternal(action.withPinnedSession)
+  }
+
+  /* Wrapper for queries where Clob/Blob types are used
+   * https://stackoverflow.com/questions/3164072/large-objects-may-not-be-used-in-auto-commit-mode#answer-3164352
+   */
+  protected[this] def runLobAction[R](action: DBIO[R]): Future[R] = {
+    if (isPostgresql) runTransaction(action) else runAction(action)
   }
 
   private def runActionInternal[R](action: DBIO[R]): Future[R] = {
