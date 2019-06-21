@@ -58,7 +58,7 @@
 
     <changeSet author="kshakir (generated)" id="postgresql-engine-init-4" dbms="postgresql">
         <createTable tableName="CALL_CACHING_HASH_ENTRY">
-            <column autoIncrement="true" name="CALL_CACHING_HASH_ENTRY_ID" type="SERIAL">
+            <column autoIncrement="true" name="CALL_CACHING_HASH_ENTRY_ID" type="BIGSERIAL">
                 <constraints primaryKey="true" primaryKeyName="PK_CALL_CACHING_HASH_ENTRY"/>
             </column>
             <column name="HASH_KEY" type="VARCHAR(255)">
