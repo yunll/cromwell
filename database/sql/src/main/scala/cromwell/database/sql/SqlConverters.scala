@@ -32,8 +32,12 @@ object SqlConverters {
   }
 
   implicit class ClobToRawString(val clob: Clob) extends AnyVal {
-    // yes, it starts at 1
-    def toRawString: String = clob.getSubString(1, clob.length.toInt)
+    def toRawString: String = {
+      // See notes on empty clob issues in StringToClobOption
+      val length = clob.length.toInt
+      // yes, it starts at 1
+      if (length == 0) "" else clob.getSubString(1, length)
+    }
   }
 
   implicit class StringOptionToClobOption(val strOption: Option[String]) extends AnyVal {
@@ -61,8 +65,12 @@ object SqlConverters {
   }
 
   implicit class BlobToBytes(val blob: Blob) extends AnyVal {
-    // yes, it starts at 1
-    def toBytes: Array[Byte] = blob.getBytes(1, blob.length.toInt)
+    def toBytes: Array[Byte] = {
+      // See notes on empty blob issues in BytesOptionToBlob
+      val length = blob.length.toInt
+      // yes, it starts at 1
+      if (length == 0) Array.empty else blob.getBytes(1, length)
+    }
   }
 
   implicit class BlobOptionToBytes(val blobOption: Option[Blob]) extends AnyVal {

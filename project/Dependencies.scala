@@ -340,8 +340,9 @@ object Dependencies {
 
   val cloudSupportDependencies = googleApiClientDependencies ++ googleCloudDependencies ++ betterFilesDependencies ++ awsCloudDependencies
 
-  val databaseSqlDependencies = configDependencies ++ catsDependencies ++ slickDependencies ++ dbmsDependencies ++
-    refinedTypeDependenciesList
+  val databaseSqlDependencies = List(
+    "commons-io" % "commons-io" % commonsIoV,
+  ) ++ configDependencies ++ catsDependencies ++ slickDependencies ++ dbmsDependencies ++ refinedTypeDependenciesList
 
   val statsDDependencies = List(
     "nl.grons" %% "metrics-scala" % metrics3ScalaV,
