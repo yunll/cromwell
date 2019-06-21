@@ -8,6 +8,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import cromwell.database.slick.tables.DataAccessComponent
 import cromwell.database.sql.SqlDatabase
 import net.ceedubs.ficus.Ficus._
+import org.postgresql.util.{PSQLException, ServerErrorMessage}
 import org.slf4j.LoggerFactory
 import slick.basic.DatabaseConfig
 import slick.jdbc.{JdbcCapabilities, JdbcProfile, TransactionIsolation}
@@ -199,6 +200,33 @@ abstract class SlickDatabase(override val originalDatabaseConfig: Config) extend
             case _ => /* keep going */
           }
           throw rollbackException
+        case pSQLException: PSQLException =>
+          val detailOption = for {
+            message <- Option(pSQLException.getServerErrorMessage)
+            detail <- Option(message.getDetail)
+          } yield detail
+
+          detailOption match {
+            case None => throw pSQLException
+            case Some(_) =>
+              /*
+              The exception may contain possibly sensitive row contents within the DETAIL section. Remove it.
+
+              Tried adjusting this using configuration:
+              - log_error_verbosity=TERSE
+              - log_min_messages=PANIC
+              - client_min_messages=ERROR
+
+              Instead resorting to reflection.
+               */
+              val message = pSQLException.getServerErrorMessage
+              val field = classOf[ServerErrorMessage].getDeclaredField("m_mesgParts")
+              field.setAccessible(true)
+              val parts = field.get(message).asInstanceOf[java.util.Map[Character, String]]
+              parts.remove('D')
+              // The original exception has already stored the DETAIL into a string. So we must create a new Exception.
+              throw new PSQLException(message)
+          }
       }
     }(actionExecutionContext)
   }

@@ -105,17 +105,6 @@ class KeyValueDatabaseSpec extends FlatSpec with Matchers with ScalaFutures with
     }
 
     it should "fail if one of the inserts fails" taggedAs DbmsTest in {
-
-      if (configPath == "database-test-postgresql") {
-        // TODO: PostgreSQL is logging the failed row values in the Exception under "Detail".
-        // THIS IS NOT OK and must be silenced, either by config, or by wrapping their exceptions with special handling.
-        // Tried changing the postgresql.conf with:
-        // - log_error_verbosity=TERSE
-        // - log_min_messages=PANIC
-        // - client_min_messages=ERROR
-        cancel("Having issues with PostgreSQL exceptions leaking data. TODO: Fix!")
-      }
-
       val futureEx = recoverToExceptionIf[E] {
         dataAccess.addJobKeyValueEntries(Seq(keyValueEntryA, wrongKeyValueEntryB))
       }
