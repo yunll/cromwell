@@ -336,7 +336,8 @@ class ServicesStoreSpec extends FlatSpec with Matchers with ScalaFutures with St
         heartbeatTimestamp = None,
         submissionTime = OffsetDateTime.now.toSystemTimestamp,
         importsZip = Option(emptyBlob),
-        customLabels = clob)
+        customLabels = clob,
+        hogGroup = None)
 
       val workflowStoreEntries = Seq(workflowStoreEntry)
 
@@ -413,7 +414,8 @@ class ServicesStoreSpec extends FlatSpec with Matchers with ScalaFutures with St
         heartbeatTimestamp = None,
         submissionTime = OffsetDateTime.now.toSystemTimestamp,
         importsZip = Option(Array.empty[Byte]).toBlobOption,
-        customLabels = clob)
+        customLabels = clob,
+        hogGroup = None)
 
       val noneWorkflowUuid = WorkflowId.randomId().toString
       val noneWorkflowStoreEntry = WorkflowStoreEntry(
@@ -430,7 +432,8 @@ class ServicesStoreSpec extends FlatSpec with Matchers with ScalaFutures with St
         heartbeatTimestamp = None,
         submissionTime = OffsetDateTime.now.toSystemTimestamp,
         importsZip = None,
-        customLabels = clob)
+        customLabels = clob,
+        hogGroup = None)
 
       val aByte = 'a'.toByte
       val aByteWorkflowUuid = WorkflowId.randomId().toString
@@ -448,7 +451,8 @@ class ServicesStoreSpec extends FlatSpec with Matchers with ScalaFutures with St
         heartbeatTimestamp = None,
         submissionTime = OffsetDateTime.now.toSystemTimestamp,
         importsZip = Option(Array(aByte)).toBlobOption,
-        customLabels = clob)
+        customLabels = clob,
+        hogGroup = None)
 
       val workflowStoreEntries = Seq(emptyWorkflowStoreEntry, noneWorkflowStoreEntry, aByteWorkflowStoreEntry)
 
