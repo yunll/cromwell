@@ -133,8 +133,14 @@ object Dependencies {
   private val tikaV = "1.24.1"
   private val typesafeConfigV = "1.4.0"
   private val workbenchGoogleV = "0.15-2fc79a3"
+<<<<<<< HEAD
   private val workbenchModelV = "0.14-27810079-SNAP"
   private val workbenchUtilV = "0.6-27810079-SNAP"
+=======
+  private val workbenchModelV = "0.10-6800f3a"
+  private val workbenchUtilV = "0.3-f3ce961"
+  private val skuberV = "2.2.0"
+>>>>>>> obs
 
   private val slf4jFacadeDependencies = List(
     "org.slf4j" % "slf4j-api" % slf4jV,
@@ -423,6 +429,11 @@ object Dependencies {
     "com.github.pathikrit" %% "better-files" % betterFilesV
   )
 
+  val obsFileSystemDependencies = googleCloudDependencies ++ List(
+    "com.github.pathikrit" %% "better-files" % betterFilesV,
+    "com.huaweicloud" % "esdk-obs-java" % "3.19.5",
+  )
+
   val statsDProxyDependencies = List(
     "co.fs2" %% "fs2-io" % fs2VStatsDProxy,
     "com.iheart" %% "ficus" % ficusV,
@@ -558,11 +569,20 @@ object Dependencies {
     "co.fs2" %% "fs2-io" % fs2V
   )
 
+  val k8sDependencies = List(
+    "io.skuber" %% "skuber" % skuberV,
+  )
+
   val bcsBackendDependencies = commonDependencies ++ refinedTypeDependenciesList ++ aliyunBatchComputeDependencies
   val tesBackendDependencies = akkaHttpDependencies
+<<<<<<< HEAD
   val sfsBackendDependencies = List (
     "org.lz4" % "lz4-java" % lz4JavaV
   )
+=======
+  val vkBackendDependencies = akkaHttpDependencies ++ k8sDependencies
+  val sparkBackendDependencies = akkaHttpDependencies
+>>>>>>> obs
 
   val testDependencies = List(
     "org.scalatest" %% "scalatest" % scalatestV,
@@ -616,6 +636,7 @@ object Dependencies {
       implFtpDependencies ++
       languageFactoryDependencies ++
       ossFileSystemDependencies ++
+      obsFileSystemDependencies ++
       perfDependencies ++
       serverDependencies ++
       sfsBackendDependencies ++
@@ -623,6 +644,7 @@ object Dependencies {
       spiUtilDependencies ++
       statsDProxyDependencies ++
       tesBackendDependencies ++
+      vkBackendDependencies ++
       wdlDependencies ++
       wes2cromwellDependencies ++
       womDependencies ++
@@ -708,7 +730,7 @@ object Dependencies {
     "protobuf",
     "stub",
   ).map(m => "io.grpc" % s"grpc-$m" % grpcV)
-
+  
   /*
   If we use a version in one of our projects, that's the one we want all the libraries to use
   ...plus other groups of transitive dependencies shared across multiple projects
@@ -718,5 +740,6 @@ object Dependencies {
       googleHttpClientDependencies ++
       nettyDependencyOverrides ++
       rdf4jDependencyOverrides ++
-      grpcDependencyOverrides
+      grpcDependencyOverrides ++
+      k8sDependencies
 }

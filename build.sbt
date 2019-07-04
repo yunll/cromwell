@@ -119,6 +119,11 @@ lazy val ossFileSystem = (project in file("filesystems/oss"))
   .dependsOn(core % "test->test")
   .dependsOn(common % "test->test")
 
+lazy val obsFileSystem = (project in file("filesystems/obs"))
+  .withLibrarySettings("cromwell-obsFileSystem", obsFileSystemDependencies)
+  .dependsOn(core)
+  .dependsOn(core % "test->test")
+
 lazy val sraFileSystem = (project in file("filesystems/sra"))
   .withLibrarySettings("cromwell-srafilesystem")
   .dependsOn(core)
@@ -269,7 +274,21 @@ lazy val tesBackend = (project in backendRoot / "tes")
   .dependsOn(sfsBackend)
   .dependsOn(ftpFileSystem)
   .dependsOn(backend % "test->test")
+<<<<<<< HEAD
   .dependsOn(common % "test->test")
+=======
+
+lazy val vkBackend = (project in backendRoot / "vk")
+  .withLibrarySettings("cromwell-vk-backend", vkBackendDependencies)
+  .dependsOn(sfsBackend)
+  .dependsOn(obsFileSystem)
+  .dependsOn(backend % "test->test")
+
+lazy val sparkBackend = (project in backendRoot / "spark")
+  .withLibrarySettings("cromwell-spark-backend", sparkBackendDependencies)
+  .dependsOn(sfsBackend)
+  .dependsOn(backend % "test->test")
+>>>>>>> obs
 
 lazy val bcsBackend = (project in backendRoot / "bcs")
   .withLibrarySettings("cromwell-bcs-backend", bcsBackendDependencies)
@@ -422,6 +441,11 @@ lazy val server = project
   .dependsOn(bcsBackend)
   .dependsOn(awsBackend)
   .dependsOn(tesBackend)
+<<<<<<< HEAD
+=======
+  .dependsOn(vkBackend)
+  .dependsOn(sparkBackend)
+>>>>>>> obs
   .dependsOn(cromwellApiClient)
   .dependsOn(wdlDraft2LanguageFactory)
   .dependsOn(wdlDraft3LanguageFactory)
@@ -474,6 +498,7 @@ lazy val root = (project in file("."))
   .aggregate(sraFileSystem)
   .aggregate(statsDProxy)
   .aggregate(tesBackend)
+  .aggregate(vkBackend)
   .aggregate(wdlBiscayneLanguageFactory)
   .aggregate(wdlDraft2LanguageFactory)
   .aggregate(wdlDraft3LanguageFactory)
