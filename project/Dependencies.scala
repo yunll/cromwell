@@ -92,6 +92,7 @@ object Dependencies {
   private val workbenchGoogleV = "0.15-2fc79a3"
   private val workbenchModelV = "0.10-6800f3a"
   private val workbenchUtilV = "0.3-f3ce961"
+  private val skuberV = "2.2.0"
 
   private val slf4jFacadeDependencies = List(
     "org.slf4j" % "slf4j-api" % slf4jV,
@@ -361,6 +362,11 @@ object Dependencies {
     "com.github.pathikrit" %% "better-files" % betterFilesV
   )
 
+  val obsFileSystemDependencies = googleCloudDependencies ++ List(
+    "com.github.pathikrit" %% "better-files" % betterFilesV,
+    "com.huaweicloud" % "esdk-obs-java" % "3.19.5",
+  )
+
   val statsDProxyDependencies = List(
     "co.fs2" %% "fs2-io" % fs2V,
     "com.iheart" %% "ficus" % ficusV,
@@ -486,8 +492,13 @@ object Dependencies {
     "co.fs2" %% "fs2-io" % fs2V
   )
 
+  val k8sDependencies = List(
+    "io.skuber" %% "skuber" % skuberV,
+  )
+
   val bcsBackendDependencies = commonDependencies ++ refinedTypeDependenciesList ++ aliyunBatchComputeDependencies
   val tesBackendDependencies = akkaHttpDependencies
+  val vkBackendDependencies = akkaHttpDependencies ++ k8sDependencies
   val sparkBackendDependencies = akkaHttpDependencies
 
   val testDependencies = List(
@@ -527,6 +538,7 @@ object Dependencies {
       implFtpDependencies ++
       languageFactoryDependencies ++
       ossFileSystemDependencies ++
+      obsFileSystemDependencies ++
       perfDependencies ++
       serverDependencies ++
       sparkBackendDependencies ++
@@ -534,6 +546,7 @@ object Dependencies {
       spiUtilDependencies ++
       statsDProxyDependencies ++
       tesBackendDependencies ++
+      vkBackendDependencies ++
       wdlDependencies ++
       wes2cromwellDependencies ++
       womDependencies ++
@@ -619,7 +632,7 @@ object Dependencies {
     "protobuf",
     "stub",
   ).map(m => "io.grpc" % s"grpc-$m" % grpcV)
-
+  
   /*
   If we use a version in one of our projects, that's the one we want all the libraries to use
   ...plus other groups of transitive dependencies shared across multiple projects
@@ -629,5 +642,6 @@ object Dependencies {
       googleHttpClientDependencies ++
       nettyDependencyOverrides ++
       rdf4jDependencyOverrides ++
-      grpcDependencyOverrides
+      grpcDependencyOverrides ++
+      k8sDependencies
 }

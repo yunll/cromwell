@@ -1,32 +1,28 @@
 package cromwell.backend.impl.vk
 
 import java.io.FileNotFoundException
-import java.nio.file.FileAlreadyExistsException
+import java.nio.file.{FileAlreadyExistsException, Paths}
 
 import cats.syntax.apply._
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import akka.http.scaladsl.marshalling.Marshal
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
 import akka.stream.ActorMaterializer
-import akka.util.ByteString
 import common.validation.ErrorOr.ErrorOr
 import common.validation.Validation._
 import cromwell.backend.BackendJobLifecycleActor
 import cromwell.backend.async.{AbortedExecutionHandle, ExecutionHandle, FailedNonRetryableExecutionHandle, PendingExecutionHandle}
-import cromwell.backend.impl.vk.VkResponseJsonFormatter._
 import cromwell.backend.standard.{StandardAsyncExecutionActor, StandardAsyncExecutionActorParams, StandardAsyncJob}
 import cromwell.core.path.{DefaultPathBuilder, Path}
 import cromwell.core.retry.SimpleExponentialBackoff
-import cromwell.core.retry.Retry._
 import wom.values.WomFile
 import net.ceedubs.ficus.Ficus._
+import skuber.api.Configuration
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
+import skuber.batch.Job
+import skuber.k8sInit
+import skuber.json.batch.format._
 
 sealed trait VkRunStatus {
   def isTerminal: Boolean
@@ -57,6 +53,8 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   implicit val actorSystem = context.system
   implicit val materializer = ActorMaterializer()
 
+  implicit val dispatcher = actorSystem.dispatcher
+
   override type StandardAsyncRunInfo = Any
 
   override type StandardAsyncRunState = VkRunStatus
@@ -78,7 +76,13 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   private lazy val realDockerImageUsed: String = jobDescriptor.maybeCallCachingEligible.dockerHash.getOrElse(runtimeAttributes.dockerImage)
   override lazy val dockerImageUsed: Option[String] = Option(realDockerImageUsed)
 
-  private val vkEndpoint = workflowDescriptor.workflowOptions.getOrElse("endpoint", vkConfiguration.endpointURL)
+  private val namespace = vkConfiguration.namespace
+
+  private val kubeConf = Paths.get(vkConfiguration.kubeConf)
+
+  private val cfg = Configuration.parseKubeconfigFile(kubeConf).get.setCurrentNamespace(namespace)
+
+  private val k8s = k8sInit(cfg)
 
   override lazy val jobTag: String = jobDescriptor.key.tag
 
@@ -128,7 +132,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     }
   }
 
-  def createTaskMessage(): ErrorOr[Task] = {
+  def createTaskMessage(): ErrorOr[Job] = {
     val task = (commandScriptContents, outputMode).mapN({
       case (contents, mode) => VkTask(
         jobDescriptor,
@@ -145,19 +149,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         mode)
     })
 
-    task.map(task => Task(
-      id = None,
-      state = None,
-      name = Option(task.name),
-      description = Option(task.description),
-      inputs = Option(task.inputs),
-      outputs = Option(task.outputs),
-      resources = Option(task.resources),
-      executors = task.executors,
-      volumes = None,
-      tags = None,
-      logs = None
-    ))
+    task.map(task => Job(task.name).withTemplate(task.templateSpec))
   }
 
   def writeScriptFile(): Future[Unit] = {
@@ -173,13 +165,12 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     val taskMessageFuture = createTaskMessage().fold(
       errors => Future.failed(new RuntimeException(errors.toList.mkString(", "))),
       Future.successful)
-
+    jobLogger.warn("taskMessage: {}", taskMessageFuture)
     for {
       _ <- writeScriptFile()
       taskMessage <- taskMessageFuture
-      entity <- Marshal(taskMessage).to[RequestEntity]
-      ctr <- makeRequest[CreateTaskResponse](HttpRequest(method = HttpMethods.POST, uri = vkEndpoint, entity = entity))
-    } yield PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.id), None, previousState = None)
+      ctr <- k8s.create(taskMessage)
+    } yield PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
   }
 
   override def reconnectAsync(jobId: StandardAsyncJob) = {
@@ -205,8 +196,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         // If the process has already completed, there will be an existing rc file.
         returnCodeTmp.delete(true)
     }
-
-    makeRequest[CancelTaskResponse](HttpRequest(method = HttpMethods.POST, uri = s"$vkEndpoint/${job.jobId}:cancel")) onComplete {
+    k8s.delete[Job](job.jobId) onComplete {
       case Success(_) => jobLogger.info("{} Aborted {}", tag: Any, job.jobId)
       case Failure(ex) => jobLogger.warn("{} Failed to abort {}: {}", tag, job.jobId, ex.getMessage)
     }
@@ -217,23 +207,27 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   override def requestsAbortAndDiesImmediately: Boolean = false
 
   override def pollStatusAsync(handle: StandardAsyncPendingExecutionHandle): Future[VkRunStatus] = {
-    makeRequest[MinimalTaskView](HttpRequest(uri = s"$vkEndpoint/${handle.pendingJob.jobId}?view=MINIMAL")) map {
+    k8s.get[Job](handle.pendingJob.jobId) map {
       response =>
-        val state = response.state
-        state match {
-          case s if s.contains("COMPLETE") =>
-            jobLogger.info(s"Job ${handle.pendingJob.jobId} is complete")
-            Complete
+        val state = response.status
+        if(state.isEmpty){
+          Running
+        }else {
+          state.get match {
+            case s if s.failed.getOrElse(0) > 0 =>
+              jobLogger.info(s"VK reported an error for Job ${handle.pendingJob.jobId}: '$s'")
+              FailedOrError
 
-          case s if s.contains("CANCELED") =>
-            jobLogger.info(s"Job ${handle.pendingJob.jobId} was canceled")
-            Cancelled
+            case s if s.succeeded.getOrElse(0) > 0 =>
+              jobLogger.info(s"Job ${handle.pendingJob.jobId} is complete")
+              Complete
 
-          case s if s.contains("ERROR") =>
-            jobLogger.info(s"VK reported an error for Job ${handle.pendingJob.jobId}: '$s'")
-            FailedOrError
+            case s if s.active.getOrElse(0) == 0 =>
+              jobLogger.info(s"Job ${handle.pendingJob.jobId} was canceled")
+              Cancelled
 
-          case _ => Running
+            case _ => Running
+          }
         }
     }
   }
@@ -275,16 +269,4 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     }
   }
 
-  private def makeRequest[A](request: HttpRequest)(implicit um: Unmarshaller[ResponseEntity, A]): Future[A] = {
-    for {
-      response <- withRetry(() => Http().singleRequest(request))
-      data <- if (response.status.isFailure()) {
-        response.entity.dataBytes.runFold(ByteString(""))(_ ++ _).map(_.utf8String) flatMap { errorBody =>
-          Future.failed(new RuntimeException(s"Failed VK request: Code ${response.status.intValue()}, Body = $errorBody"))
-        }
-      } else {
-        Unmarshal(response.entity).to[A]
-      }
-    } yield data
-  }
 }

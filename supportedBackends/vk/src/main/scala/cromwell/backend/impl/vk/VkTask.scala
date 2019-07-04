@@ -6,6 +6,9 @@ import cromwell.backend.impl.vk.OutputMode.OutputMode
 import cromwell.backend.{BackendConfigurationDescriptor, BackendJobDescriptor}
 import cromwell.core.logging.JobLogger
 import cromwell.core.path.{DefaultPathBuilder, Path}
+import skuber.Resource.Quantity
+import skuber.Volume.{Mount, PersistentVolumeClaimRef}
+import skuber.{Container, Pod, Resource, RestartPolicy, Volume}
 import wdl.draft2.model.FullyQualifiedName
 import wdl4s.parser.MemoryUnit
 import wom.InstantiatedCommand
@@ -31,7 +34,7 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
 
   private val workflowDescriptor = jobDescriptor.workflowDescriptor
   private val workflowName = workflowDescriptor.callable.name
-  private val fullyQualifiedTaskName = jobDescriptor.taskCall.fullyQualifiedName
+  private val fullyQualifiedTaskName = jobDescriptor.taskCall.localName
   val name: String = fullyQualifiedTaskName
   val description: String = jobDescriptor.toString
 
@@ -212,30 +215,55 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     result
   }
 
-  private val disk :: ram :: _ = Seq(runtimeAttributes.disk, runtimeAttributes.memory) map {
+  private val _ :: ram :: _ = Seq(runtimeAttributes.disk, runtimeAttributes.memory) map {
     case Some(x) =>
       Option(x.to(MemoryUnit.GB).amount)
     case None =>
       None
   }
 
-  val resources = Resources(
-    cpu_cores = runtimeAttributes.cpu.map(_.value),
-    ram_gb = ram,
-    disk_gb = disk,
-    preemptible = Option(false),
-    zones = None
+  val resources = Option(Resource.Requirements(
+    requests = Map(
+      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse("0.5")),
+      "memory" -> Quantity(ram.getOrElse("1Gi").toString),
+    ),
+    limits = Map(
+      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse("0.5")),
+      "memory" -> Quantity(ram.getOrElse("1Gi").toString),
+    )
+  ))
+
+  val pvc_sfs = configurationDescriptor.backendConfig.getString("pvc-sfs")
+  var mountPath = configurationDescriptor.backendConfig.getString("mountPath")
+  if(mountPath.isEmpty()){
+    mountPath = "/sfs"
+  }
+
+  val containers = List(Container(
+    name = fullyQualifiedTaskName,
+    image = dockerImageUsed,
+    command = List(jobShell, commandScript.path),
+    workingDir = runtimeAttributes.dockerWorkingDir,
+    resources = resources,
+    volumeMounts = if(!pvc_sfs.isEmpty()) List(Mount(
+      name = pvc_sfs,
+      mountPath = mountPath
+    )) else Nil
+  ))
+
+
+  val podSpec = Pod.Spec(
+    containers = containers,
+    volumes = if(!pvc_sfs.isEmpty()) List(Volume(
+      name = pvc_sfs,
+      source = PersistentVolumeClaimRef(
+        claimName = pvc_sfs
+      )
+    )) else Nil,
+    restartPolicy = RestartPolicy.OnFailure,
   )
 
-  val executors = Seq(Executor(
-    image = dockerImageUsed,
-    command = Seq(jobShell, commandScript.path),
-    workdir = runtimeAttributes.dockerWorkingDir,
-    stdout = Option(vkPaths.containerOutput(containerWorkDir, "stdout")),
-    stderr = Option(vkPaths.containerOutput(containerWorkDir, "stderr")),
-    stdin = None,
-    env = None
-  ))
+  val templateSpec = Pod.Template.Spec.named(name=fullyQualifiedTaskName).withPodSpec(podSpec)
 }
 
 // Field requirements in classes below based off GA4GH schema

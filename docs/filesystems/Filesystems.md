@@ -31,6 +31,9 @@ filesystems {
   oss {
     class = "cromwell.filesystems.oss.OssPathBuilderFactory"
   }
+  obs {
+    class = "cromwell.filesystems.obs.ObsPathBuilderFactory"
+  }
   s3 {
     class = "cromwell.filesystems.s3.S3PathBuilderFactory"
   }
