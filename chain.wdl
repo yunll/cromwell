@@ -1,29 +1,31 @@
 workflow wf_chain {
   File firstInput
-  call stepA { input: in=firstInput }
-  call stepB { input: in=stepA.out }
-  call stepC { input: in=stepB.out }
+  File firstInput2
+  call stepa { input: in=firstInput, in2=firstInput2 }
+  call stepb { input: in=stepa.out }
+  call stepc { input: in=stepb.out }
 }
-task stepA {
+task stepa {
   File in
-  command { echo "stepA" > outputA.txt }
-  output { File out = "outputA.txt" }
+  File in2
+  command { cat ${in} > outputa.txt }
+  output { File out = "outputa.txt" }
   runtime {
     docker: "ubuntu:latest"
   }
 }
-task stepB {
+task stepb {
   File in
-  command { echo ${in} "stepB" > outputB.txt }
-  output { File out = "outputB.txt" }
+  command { cat ${in} > outputb.txt }
+  output { File out = "outputb.txt" }
   runtime {
     docker: "ubuntu:latest"
   }
 }
-task stepC {
+task stepc {
   File in
-  command { echo ${in} "stepC" > outputC.txt }
-  output { File out = "outputC.txt" }
+  command { cat ${in} > outputc.txt }
+  output { File out = "outputc.txt" }
   runtime {
     docker: "ubuntu:latest"
   }

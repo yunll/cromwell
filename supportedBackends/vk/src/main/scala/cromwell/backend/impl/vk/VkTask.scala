@@ -7,7 +7,7 @@ import cromwell.backend.{BackendConfigurationDescriptor, BackendJobDescriptor}
 import cromwell.core.logging.JobLogger
 import cromwell.core.path.{DefaultPathBuilder, Path}
 import skuber.Resource.Quantity
-import skuber.Volume.{Mount, PersistentVolumeClaimRef}
+import skuber.Volume.{HostPath, Mount}
 import skuber.{Container, Pod, Resource, RestartPolicy, Volume}
 import wdl.draft2.model.FullyQualifiedName
 import wdl4s.parser.MemoryUnit
@@ -233,11 +233,8 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     )
   ))
 
-  val pvc_sfs = configurationDescriptor.backendConfig.getString("pvc-sfs")
-  var mountPath = configurationDescriptor.backendConfig.getString("mountPath")
-  if(mountPath.isEmpty()){
-    mountPath = "/sfs"
-  }
+  val pvc = Option(configurationDescriptor.backendConfig.getString("pvc"))
+  var mountPath = Option(configurationDescriptor.backendConfig.getString("mountPath")).getOrElse(configurationDescriptor.backendConfig.getString("dockerRoot"))
 
   val containers = List(Container(
     name = fullyQualifiedTaskName,
@@ -245,8 +242,8 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     command = List(jobShell, commandScript.path),
     workingDir = runtimeAttributes.dockerWorkingDir,
     resources = resources,
-    volumeMounts = if(!pvc_sfs.isEmpty()) List(Mount(
-      name = pvc_sfs,
+    volumeMounts = if(!pvc.isEmpty) List(Mount(
+      name = pvc.get,
       mountPath = mountPath
     )) else Nil
   ))
@@ -254,10 +251,11 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
 
   val podSpec = Pod.Spec(
     containers = containers,
-    volumes = if(!pvc_sfs.isEmpty()) List(Volume(
-      name = pvc_sfs,
-      source = PersistentVolumeClaimRef(
-        claimName = pvc_sfs
+    volumes = if(!pvc.isEmpty) List(Volume(
+      name = pvc.get,
+      source = HostPath(
+        path = "/opt",
+        `type` = Option("Directory")
       )
     )) else Nil,
     restartPolicy = RestartPolicy.OnFailure,

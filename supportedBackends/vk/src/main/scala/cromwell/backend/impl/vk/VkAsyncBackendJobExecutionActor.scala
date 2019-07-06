@@ -12,17 +12,19 @@ import cromwell.backend.async.{AbortedExecutionHandle, ExecutionHandle, FailedNo
 import cromwell.backend.standard.{StandardAsyncExecutionActor, StandardAsyncExecutionActorParams, StandardAsyncJob}
 import cromwell.core.path.{DefaultPathBuilder, Path}
 import cromwell.core.retry.SimpleExponentialBackoff
-import wom.values.WomFile
+import wom.values._
 import net.ceedubs.ficus.Ficus._
 import skuber.api.Configuration
+import common.collections.EnhancedCollections._
 
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 import skuber.batch.Job
 import skuber.k8sInit
 import skuber.json.batch.format._
+import wdl.draft2.model.FullyQualifiedName
 
 sealed trait VkRunStatus {
   def isTerminal: Boolean
@@ -159,9 +161,41 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     )
   }
 
+  private def writeFunctionFiles: Map[FullyQualifiedName, Seq[WomFile]] =
+    instantiatedCommand.createdFiles map { f => f.file.value.md5SumShort -> List(f.file) } toMap
+
+  private val callInputFiles: Map[FullyQualifiedName, Seq[WomFile]] = jobDescriptor
+    .fullyQualifiedInputs
+    .safeMapValues {
+      _.collectAsSeq { case w: WomFile => w }
+    }
+
+  private def checkInputs() = {
+    var copies = List[Future[Unit]]()
+    (callInputFiles ++ writeFunctionFiles).flatMap {
+      case (_, files) => files.flatMap(_.flattenFiles).zipWithIndex.map {
+        case (f, _) =>
+          getPath(f.value) match {
+            case Success(path: Path) if path.uri.getScheme.equals("obs") =>
+              val destination = vkJobPaths.callInputsRoot.resolve(path.pathWithoutScheme.stripPrefix("/"))
+              if (!destination.exists) {
+                val future = asyncIo.copyAsync(path, destination)
+                copies = future :: copies
+              }
+            case _ =>
+              Nil
+          }
+      }
+    }
+    for(future <- copies){
+      Await.result(future, Duration.Inf)
+    }
+  }
+
   override def executeAsync(): Future[ExecutionHandle] = {
     // create call exec dir
     vkJobPaths.callExecutionRoot.createPermissionedDirectories()
+    checkInputs()
     val taskMessageFuture = createTaskMessage().fold(
       errors => Future.failed(new RuntimeException(errors.toList.mkString(", "))),
       Future.successful)
@@ -262,10 +296,19 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         case Success(absoluteOutputPath) if absoluteOutputPath.isAbsolute => absoluteOutputPath
         case _ => vkJobPaths.callExecutionRoot.resolve(path)
       }
-
       if (!absPath.exists) {
         throw new FileNotFoundException(s"Could not process output, file not found: ${absPath.pathAsString}")
-      } else absPath.pathAsString
+      } else {
+        syncOutput(absPath)
+        absPath.pathAsString
+      }
+    }
+  }
+
+  private def syncOutput(path: Path) = {
+    if(!vkConfiguration.storagePath.isEmpty) {
+      val destPath = getPath(path.pathAsString.replace(vkJobPaths.workflowPaths.executionRoot.pathAsString, vkConfiguration.storagePath.get)).get
+      asyncIo.copyAsync(path, destPath)
     }
   }
 
