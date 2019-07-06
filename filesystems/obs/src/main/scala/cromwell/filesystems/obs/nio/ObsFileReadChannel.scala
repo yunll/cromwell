@@ -1,15 +1,19 @@
 package cromwell.filesystems.obs.nio
 
 import java.nio.ByteBuffer
-import java.nio.channels.{Channels, SeekableByteChannel}
+import java.nio.channels.{Channels, ReadableByteChannel, SeekableByteChannel}
 
-import com.obs.services.model.{GetObjectMetadataRequest, GetObjectRequest}
+import com.obs.services.model.GetObjectMetadataRequest
 import com.obs.services.ObsClient
 
 import scala.util.Try
 
 final case class ObsFileReadChannel(obsClient: ObsClient, pos: Long, path: ObsStoragePath) extends ObsFileChannel {
   var internalPosition = pos
+
+  var total = size
+
+  val channel = getChannel()
 
   override def position(): Long = {
     synchronized {
@@ -43,27 +47,25 @@ final case class ObsFileReadChannel(obsClient: ObsClient, pos: Long, path: ObsSt
       throw new IllegalArgumentException(s"being $begin or end $end invalid")
     }
 
-    if (begin >= size) {
+    if (begin >= total) {
         return -1
     }
 
-    if (end >= size()) {
-      end = size() - 1
+    if (end >= total) {
+       end = total - 1
     }
 
-    val getObjectRequest = new GetObjectRequest(path.bucket, path.key)
-    getObjectRequest.setRangeStart(begin)
-    getObjectRequest.setRangeEnd(end)
+    val amt = channel.read(dst)
+    internalPosition += amt
+    amt
+  }
 
+  private def getChannel(): ReadableByteChannel = {
     ObsStorageRetry.fromTry(
-      () => Try{
-        val obsObject = obsClient.getObject(getObjectRequest)
+      () => Try {
+        val obsObject = obsClient.getObject(path.bucket, path.key)
         val in = obsObject.getObjectContent
-        val channel = Channels.newChannel(in)
-
-        val amt = channel.read(dst)
-        internalPosition += amt
-        amt
+        Channels.newChannel(in)
       }
     )
   }
@@ -72,7 +74,8 @@ final case class ObsFileReadChannel(obsClient: ObsClient, pos: Long, path: ObsSt
     ObsStorageRetry.fromTry(
       () => Try {
         val request = new GetObjectMetadataRequest(path.bucket, path.key)
-        obsClient.getObjectMetadata(request).getContentLength
+        val meta = obsClient.getObjectMetadata(request)
+        meta.getContentLength
       }
     )
   }
