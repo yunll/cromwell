@@ -1,4 +1,4 @@
 {
-  "wf_chain.firstInput": "obs://obs-dts/sbt-1.2.8.zip",
-  "wf_chain.firstInput2": "obs://obs-dts/apache-maven-3.6.1-bin.zip"
+  "wf_chain.firstInput": "obs://obs-dts/examle/test/",
+  "wf_chain.firstInput2": "obs://obs-dts/examle/test/"
 }
