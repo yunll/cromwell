@@ -1,10 +1,5 @@
 package cromwell
 
-//import cromwell.core.path.DefaultPathBuilder
-
-//import scala.util.Properties
-
-
 
 object CromwellApp extends App {
 
@@ -26,8 +21,6 @@ object CromwellApp extends App {
 
   val parser = buildParser()
   val parsedArgs = parser.parse(args, CommandLineArguments())
-//  Properties.setProp("config.file", "/Users/dts/cromwell/cromwell/vk-obs.conf")
-//  val parsedArgs = parser.parse(args, CommandLineArguments(command = Option(Run),workflowSource = Option("/Users/dts/cromwell/cromwell/chain.wdl"),workflowInputs = Option(DefaultPathBuilder.build("/Users/dts/cromwell/cromwell/chain.inputs").get)))
   parsedArgs match {
     case Some(pa) => runCromwell(pa)
     case None => parser.showUsage()
