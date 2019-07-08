@@ -34,8 +34,9 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
 
   private val workflowDescriptor = jobDescriptor.workflowDescriptor
   private val workflowName = workflowDescriptor.callable.name
-  private val fullyQualifiedTaskName = jobDescriptor.taskCall.localName
-  val name: String = fullyQualifiedTaskName
+  private val workflowId = workflowDescriptor.id
+  private val fullyQualifiedTaskName = jobDescriptor.taskCall.localName.toLowerCase()
+  val name: String = fullyQualifiedTaskName + "-" + workflowId
   val description: String = jobDescriptor.toString
 
   // TODO validate "project" field of workflowOptions
