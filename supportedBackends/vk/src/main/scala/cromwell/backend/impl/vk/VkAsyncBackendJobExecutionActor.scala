@@ -146,19 +146,14 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
 
   def createTaskMessage(): ErrorOr[Job] = {
     val task = (commandScriptContents, outputMode).mapN({
-      case (contents, mode) => VkTask(
+      case (_, _) => VkTask(
         jobDescriptor,
         configurationDescriptor,
-        jobLogger,
         vkJobPaths,
         runtimeAttributes,
         commandDirectory,
-        contents,
-        instantiatedCommand,
         realDockerImageUsed,
-        mapCommandLineWomFile,
-        jobShell,
-        mode)
+        jobShell)
     })
 
     task.map(task => Job(task.name).withTemplate(task.templateSpec))
