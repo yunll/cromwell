@@ -7,7 +7,7 @@ import cromwell.backend.{BackendConfigurationDescriptor, BackendJobDescriptor}
 import cromwell.core.logging.JobLogger
 import cromwell.core.path.{DefaultPathBuilder, Path}
 import skuber.Resource.Quantity
-import skuber.Volume.{HostPath, Mount}
+import skuber.Volume.{Mount, PersistentVolumeClaimRef}
 import skuber.{Container, Pod, Resource, RestartPolicy, Volume}
 import wdl.draft2.model.FullyQualifiedName
 import wdl4s.parser.MemoryUnit
@@ -254,9 +254,8 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     containers = containers,
     volumes = if(!pvc.isEmpty) List(Volume(
       name = pvc.get,
-      source = HostPath(
-        path = "/opt",
-        `type` = Option("Directory")
+      source = PersistentVolumeClaimRef(
+        claimName = pvc.get
       )
     )) else Nil,
     restartPolicy = RestartPolicy.OnFailure,
