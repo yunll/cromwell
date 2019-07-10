@@ -4,7 +4,7 @@ import cromwell.backend.{BackendConfigurationDescriptor, BackendJobDescriptor}
 import cromwell.core.path.Path
 import skuber.Resource.Quantity
 import skuber.Volume.{Mount, PersistentVolumeClaimRef}
-import skuber.{Container, Pod, Resource, RestartPolicy, Volume}
+import skuber.{Container, LocalObjectReference, Pod, Resource, RestartPolicy, Volume}
 import wdl4s.parser.MemoryUnit
 
 final case class VkTask(jobDescriptor: BackendJobDescriptor,
@@ -18,7 +18,8 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
   private val workflowDescriptor = jobDescriptor.workflowDescriptor
   private val workflowId = workflowDescriptor.id
   private val fullyQualifiedTaskName = jobDescriptor.taskCall.localName.toLowerCase()
-  val name: String = fullyQualifiedTaskName + "-" + workflowId
+  private val index = jobDescriptor.key.index.getOrElse(0)
+  val name: String = fullyQualifiedTaskName + "-" + index + "-" + workflowId.shortString
 
   // contains the script to be executed
   private val commandScriptPath = vkPaths.callExecutionDockerRoot.resolve("script").toString
@@ -33,12 +34,12 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
 
   val resources = Option(Resource.Requirements(
     requests = Map(
-      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse("0.5")),
-      "memory" -> Quantity(ram.getOrElse("1Gi").toString),
+      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse("1")),
+      "memory" -> Quantity(ram.getOrElse("2").toString+"Gi"),
     ),
     limits = Map(
-      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse("0.5")),
-      "memory" -> Quantity(ram.getOrElse("1Gi").toString),
+      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse("1")),
+      "memory" -> Quantity(ram.getOrElse("2").toString+"Gi"),
     )
   ))
 
@@ -67,6 +68,9 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
       )
     )) else Nil,
     restartPolicy = RestartPolicy.OnFailure,
+    imagePullSecrets = List(LocalObjectReference(
+      name = "imagepull-secret"
+    ))
   )
 
   val templateSpec = Pod.Template.Spec.named(name=fullyQualifiedTaskName).withPodSpec(podSpec)
