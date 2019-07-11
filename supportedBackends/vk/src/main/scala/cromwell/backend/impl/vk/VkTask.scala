@@ -34,17 +34,17 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
 
   val resources = Option(Resource.Requirements(
     requests = Map(
-      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse("1")),
-      "memory" -> Quantity(ram.getOrElse("2").toString+"Gi"),
+      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse((ram.getOrElse(2.0)/2).toInt.toString)),
+      "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
     ),
     limits = Map(
-      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse("1")),
-      "memory" -> Quantity(ram.getOrElse("2").toString+"Gi"),
+      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse((ram.getOrElse(2.0)/2).toInt.toString)),
+      "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
     )
   ))
 
   val pvc = Option(configurationDescriptor.backendConfig.getString("pvc"))
-  var mountPath = Option(configurationDescriptor.backendConfig.getString("mountPath")).getOrElse(configurationDescriptor.backendConfig.getString("dockerRoot"))
+  var mountPath = configurationDescriptor.backendConfig.getString("dockerRoot")
 
   val containers = List(Container(
     name = fullyQualifiedTaskName,
