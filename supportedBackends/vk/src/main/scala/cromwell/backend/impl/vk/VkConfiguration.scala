@@ -6,6 +6,7 @@ class VkConfiguration(val configurationDescriptor: BackendConfigurationDescripto
   val namespace = configurationDescriptor.backendConfig.getString("namespace")
   val storagePath = Option(configurationDescriptor.backendConfig.getString("storagePath"))
   val region = Option(configurationDescriptor.backendConfig.getString("region")).getOrElse("cn-north-4")
+  val async = if(configurationDescriptor.backendConfig.hasPath("async")){configurationDescriptor.backendConfig.getString("async").toBoolean}else{false}
   val accessKey = configurationDescriptor.backendConfig.getString("accessKey")
   val secretKey = configurationDescriptor.backendConfig.getString("secretKey")
   val runtimeConfig = configurationDescriptor.backendRuntimeAttributesConfig
