@@ -33,9 +33,9 @@ import net.ceedubs.ficus.Ficus._
 import common.collections.EnhancedCollections._
 
 import scala.concurrent.{Await, Future}
-import scala.concurrent.duration._
+import scala.concurrent.duration.{Duration, _}
 import scala.language.postfixOps
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 import skuber.batch.Job
 import skuber.json.batch.format._
 import wdl.draft2.model.FullyQualifiedName
@@ -100,7 +100,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   private val namespace = vkConfiguration.namespace
 
   private val apiServerUrl = s"https://cci.${vkConfiguration.region}.myhuaweicloud.com"
-  private val token = getToken()
+  private val token = initToken()
 
   override lazy val jobTag: String = jobDescriptor.key.tag
 
@@ -170,6 +170,10 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     val mac = Mac.getInstance("HmacSHA256")
     mac.init(secret)
     mac.doFinal(content)
+  }
+
+  def initToken(): String = {
+    Await.result[String](withRetry(() => Future.fromTry(Try(getToken())), maxRetries = runtimeAttributes.maxRetries), Duration.Inf)
   }
 
   def getToken(): String = {
