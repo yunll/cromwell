@@ -21,6 +21,7 @@ class VkRuntimeAttributesSpec extends WordSpecLike with Matchers {
     false,
     None,
     None,
+    None,
     None
   )
 
@@ -32,7 +33,7 @@ class VkRuntimeAttributesSpec extends WordSpecLike with Matchers {
     )))
   }
 
-  "TesRuntimeAttributes" should {
+  "VkRuntimeAttributes" should {
 
     "throw an exception when there are no runtime attributes defined." in {
       val runtimeAttributes = Map.empty[String, WomValue]
