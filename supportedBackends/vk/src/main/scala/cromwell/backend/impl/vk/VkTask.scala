@@ -19,10 +19,11 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
   private val workflowId = workflowDescriptor.id
   private val fullyQualifiedTaskName = jobDescriptor.taskCall.localName.toLowerCase()
   private val index = jobDescriptor.key.index.getOrElse(0)
-  val name: String = fullyQualifiedTaskName + "-" + index + "-" + workflowId.shortString
+  private val attempt = jobDescriptor.key.attempt
+  val name: String = fullyQualifiedTaskName + "-" + index + "-" + attempt + "-" + workflowId.shortString
 
   // contains the script to be executed
-  private val commandScriptPath = vkPaths.callExecutionDockerRoot.resolve("script").toString
+  val commandScriptPath = vkPaths.callExecutionDockerRoot.resolve("script").toString
 
 
   private val _ :: ram :: _ = Seq(runtimeAttributes.disk, runtimeAttributes.memory) map {
@@ -43,7 +44,11 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     )
   ))
 
-  val pvc = Option(configurationDescriptor.backendConfig.getString("pvc"))
+  val pvc = if (configurationDescriptor.backendConfig.hasPath("pvc")){
+    configurationDescriptor.backendConfig.getString("pvc")
+  }else{
+    ""
+  }
   var mountPath = configurationDescriptor.backendConfig.getString("dockerRoot")
 
   val containers = List(Container(
@@ -52,8 +57,8 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     command = List(jobShell, commandScriptPath),
     workingDir = runtimeAttributes.dockerWorkingDir,
     resources = resources,
-    volumeMounts = if(!pvc.isEmpty) List(Mount(
-      name = pvc.get,
+    volumeMounts = if(!pvc.equals("")) List(Mount(
+      name = pvc,
       mountPath = mountPath
     )) else Nil
   ))
@@ -61,10 +66,10 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
 
   val podSpec = Pod.Spec(
     containers = containers,
-    volumes = if(!pvc.isEmpty) List(Volume(
-      name = pvc.get,
+    volumes = if(!pvc.equals("")) List(Volume(
+      name = pvc,
       source = PersistentVolumeClaimRef(
-        claimName = pvc.get
+        claimName = pvc
       )
     )) else Nil,
     restartPolicy = RestartPolicy.OnFailure,

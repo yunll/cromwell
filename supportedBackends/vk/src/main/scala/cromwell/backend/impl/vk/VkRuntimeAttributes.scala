@@ -4,7 +4,7 @@ import cats.syntax.validated._
 import com.typesafe.config.Config
 import common.validation.ErrorOr.ErrorOr
 import cromwell.backend.standard.StandardValidatedRuntimeAttributesBuilder
-import cromwell.backend.validation._
+import cromwell.backend.validation.{MaxRetriesValidation, _}
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.numeric.Positive
 import wom.RuntimeAttributesKeys
@@ -17,7 +17,8 @@ case class VkRuntimeAttributes(continueOnReturnCode: ContinueOnReturnCode,
                                failOnStderr: Boolean,
                                cpu: Option[Int Refined Positive],
                                memory: Option[MemorySize],
-                               disk: Option[MemorySize])
+                               disk: Option[MemorySize],
+                               maxRetries: Option[Int])
 
 object VkRuntimeAttributes {
 
@@ -36,6 +37,8 @@ object VkRuntimeAttributes {
 
   private val dockerValidation: RuntimeAttributesValidation[String] = DockerValidation.instance
 
+  private val maxRetriesValidation: OptionalRuntimeAttributesValidation[Int] = MaxRetriesValidation.optional
+
   private val dockerWorkingDirValidation: OptionalRuntimeAttributesValidation[String] = DockerWorkingDirValidation.optional
 
   def runtimeAttributesBuilder(backendRuntimeConfig: Option[Config]): StandardValidatedRuntimeAttributesBuilder =
@@ -43,6 +46,7 @@ object VkRuntimeAttributes {
       cpuValidation(backendRuntimeConfig),
       memoryValidation(backendRuntimeConfig),
       diskSizeValidation(backendRuntimeConfig),
+      maxRetriesValidation,
       dockerValidation,
       dockerWorkingDirValidation
     )
@@ -57,7 +61,7 @@ object VkRuntimeAttributes {
       RuntimeAttributesValidation.extract(failOnStderrValidation(backendRuntimeConfig), validatedRuntimeAttributes)
     val continueOnReturnCode: ContinueOnReturnCode =
       RuntimeAttributesValidation.extract(continueOnReturnCodeValidation(backendRuntimeConfig), validatedRuntimeAttributes)
-
+    val maxRetries: Option[Int] = RuntimeAttributesValidation.extractOption(maxRetriesValidation.key, validatedRuntimeAttributes)
     new VkRuntimeAttributes(
       continueOnReturnCode,
       docker,
@@ -65,7 +69,8 @@ object VkRuntimeAttributes {
       failOnStderr,
       cpu,
       memory,
-      disk
+      disk,
+      maxRetries
     )
   }
 }
