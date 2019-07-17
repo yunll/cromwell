@@ -302,15 +302,20 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         Future.successful(task)
       })
     jobLogger.warn("taskMessage: {}", taskMessageFuture)
-    for {
-      _ <- writeScriptFile()
-      taskMessage <- taskMessageFuture
-      entity <- Marshal(taskMessage).to[RequestEntity]
-      ctr <- makeRequest[Job](HttpRequest(method = HttpMethods.POST,
-        headers = List(RawHeader("X-Auth-Token", token)),
-        uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs",
-        entity = entity))
-    } yield PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
+    try {
+      for {
+        _ <- writeScriptFile()
+        taskMessage <- taskMessageFuture
+        entity <- Marshal(taskMessage).to[RequestEntity]
+        ctr <- makeRequest[Job](HttpRequest(method = HttpMethods.POST,
+          headers = List(RawHeader("X-Auth-Token", token)),
+          uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs",
+          entity = entity))
+      } yield PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
+    } catch {
+      case ex: Exception => Future.successful(FailedRetryableExecutionHandle(ex))
+      case t: Throwable => throw t
+    }
   }
 
   def restartJob(jobName: String) = {
