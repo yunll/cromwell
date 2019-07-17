@@ -6,5 +6,6 @@ case class VkBackendInitializationData
 (
   override val workflowPaths: VkWorkflowPaths,
   override val runtimeAttributesBuilder: StandardValidatedRuntimeAttributesBuilder,
-  vkConfiguration: VkConfiguration
+  vkConfiguration: VkConfiguration,
+  restarting: Boolean
 ) extends StandardInitializationData(workflowPaths, runtimeAttributesBuilder, classOf[VkExpressionFunctions])
