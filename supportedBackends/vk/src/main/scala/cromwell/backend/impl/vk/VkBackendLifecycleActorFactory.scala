@@ -19,6 +19,6 @@ case class VkBackendLifecycleActorFactory(name: String, configurationDescriptor:
 
   override def workflowInitializationActorParams(workflowDescriptor: BackendWorkflowDescriptor, ioActor: ActorRef, calls: Set[CommandCallNode],
                                                  serviceRegistryActor: ActorRef, restarting: Boolean): StandardInitializationActorParams = {
-    VkInitializationActorParams(workflowDescriptor, calls, vkConfiguration, serviceRegistryActor)
+    VkInitializationActorParams(workflowDescriptor, calls, vkConfiguration, serviceRegistryActor, restarting)
   }
 }

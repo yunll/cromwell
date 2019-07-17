@@ -13,7 +13,8 @@ case class VkInitializationActorParams
   workflowDescriptor: BackendWorkflowDescriptor,
   calls: Set[CommandCallNode],
   vkConfiguration: VkConfiguration,
-  serviceRegistryActor: ActorRef
+  serviceRegistryActor: ActorRef,
+  restarting: Boolean
 ) extends StandardInitializationActorParams {
   override val configurationDescriptor: BackendConfigurationDescriptor = vkConfiguration.configurationDescriptor
 }
@@ -38,7 +39,7 @@ class VkInitializationActor(params: VkInitializationActorParams)
     workflowPaths map { paths =>
       publishWorkflowRoot(paths.workflowRoot.toString)
       paths.workflowRoot.createPermissionedDirectories()
-      Option(VkBackendInitializationData(paths, runtimeAttributesBuilder, vkConfiguration))
+      Option(VkBackendInitializationData(paths, runtimeAttributesBuilder, vkConfiguration, params.restarting))
     }
   }
 }

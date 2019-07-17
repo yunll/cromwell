@@ -68,7 +68,7 @@ class VkInitializationActorSpec extends TestKitSuite("VkInitializationActorSpec"
 
   private def getActorRef(workflowDescriptor: BackendWorkflowDescriptor, calls: Set[CommandCallNode],
                           conf: BackendConfigurationDescriptor) = {
-    val params = VkInitializationActorParams(workflowDescriptor, calls, new VkConfiguration(conf), emptyActor)
+    val params = VkInitializationActorParams(workflowDescriptor, calls, new VkConfiguration(conf), emptyActor, false)
     val props = Props(new VkInitializationActor(params))
     system.actorOf(props, "VkInitializationActor" + UUID.randomUUID)
   }

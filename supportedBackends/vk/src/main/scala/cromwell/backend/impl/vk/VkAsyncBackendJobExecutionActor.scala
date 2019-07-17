@@ -22,7 +22,7 @@ import akka.util.ByteString
 import common.validation.ErrorOr.ErrorOr
 import common.validation.Validation._
 import cromwell.backend.BackendJobLifecycleActor
-import cromwell.backend.async.{AbortedExecutionHandle, ExecutionHandle, FailedNonRetryableExecutionHandle, PendingExecutionHandle}
+import cromwell.backend.async.{AbortedExecutionHandle, ExecutionHandle, FailedNonRetryableExecutionHandle, FailedRetryableExecutionHandle, PendingExecutionHandle}
 import cromwell.backend.standard.{StandardAsyncExecutionActor, StandardAsyncExecutionActorParams, StandardAsyncJob}
 import cromwell.core.path.{DefaultPathBuilder, Path}
 import cromwell.core.retry.SimpleExponentialBackoff
@@ -32,7 +32,7 @@ import wom.values._
 import net.ceedubs.ficus.Ficus._
 import common.collections.EnhancedCollections._
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.{Duration, _}
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
@@ -275,6 +275,10 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
                 val future = asyncIo.copyAsync(path, destination)
                 copies = future :: copies
               }
+            case Success(path: Path) if !path.exists =>
+              val source = getPath(path.pathAsString.replace(vkJobPaths.workflowPaths.executionRoot.pathAsString, vkConfiguration.storagePath.get)).get
+              val future = asyncIo.copyAsync(source, path)
+              copies = future :: copies
             case _ =>
               Nil
           }
@@ -291,7 +295,12 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     checkInputs()
     val taskMessageFuture = createTaskMessage().fold(
       errors => Future.failed(new RuntimeException(errors.toList.mkString(", "))),
-      Future.successful)
+      task => {
+//        if(initializationData.restarting) {
+//          restartJob(task.name)
+//        }
+        Future.successful(task)
+      })
     jobLogger.warn("taskMessage: {}", taskMessageFuture)
     for {
       _ <- writeScriptFile()
@@ -302,6 +311,13 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs",
         entity = entity))
     } yield PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
+  }
+
+  def restartJob(jobName: String) = {
+    pollStatusAsync(jobName) onComplete  {
+      case Success(_) => tryAbort(StandardAsyncJob(jobName))
+      case Failure(_) => ()
+    }
   }
 
   override def reconnectAsync(jobId: StandardAsyncJob) = {
@@ -340,8 +356,12 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   override def requestsAbortAndDiesImmediately: Boolean = false
 
   override def pollStatusAsync(handle: StandardAsyncPendingExecutionHandle): Future[VkRunStatus] = {
+    pollStatusAsync(handle.pendingJob.jobId)
+  }
+
+  private def pollStatusAsync(jobName: String): Future[VkRunStatus] = {
     makeRequest[Job](HttpRequest(headers = List(RawHeader("X-Auth-Token", token)),
-      uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs/${handle.pendingJob.jobId}")) map {
+      uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs/${jobName}")) map {
       response =>
         val state = response.status
         if(state.isEmpty){
@@ -349,15 +369,15 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         }else {
           state.get match {
             case s if s.failed.getOrElse(0) > 0 =>
-              jobLogger.info(s"VK reported an error for Job ${handle.pendingJob.jobId}: '$s'")
+              jobLogger.info(s"VK reported an error for Job ${jobName}: '$s'")
               FailedOrError
 
             case s if s.succeeded.getOrElse(0) > 0 =>
-              jobLogger.info(s"Job ${handle.pendingJob.jobId} is complete")
+              jobLogger.info(s"Job ${jobName} is complete")
               Complete
 
             case s if s.active.getOrElse(0) == 0 =>
-              jobLogger.info(s"Job ${handle.pendingJob.jobId} was canceled")
+              jobLogger.info(s"Job ${jobName} was canceled")
               Cancelled
 
             case _ => Running
@@ -376,6 +396,23 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     status match {
       case Cancelled => Future.successful(AbortedExecutionHandle)
       case _ => super.handleExecutionFailure(status, returnCode)
+    }
+  }
+
+  /**
+    * Process a successful run, as defined by `isSuccess`.
+    *
+    * @param runStatus  The run status.
+    * @param handle     The execution handle.
+    * @param returnCode The return code.
+    * @return The execution handle.
+    */
+  override def handleExecutionSuccess(runStatus: StandardAsyncRunState,
+                             handle: StandardAsyncPendingExecutionHandle,
+                             returnCode: Int)(implicit ec: ExecutionContext): Future[ExecutionHandle] = {
+    super.handleExecutionSuccess(runStatus, handle, returnCode) map {
+      case handle: FailedNonRetryableExecutionHandle => FailedRetryableExecutionHandle(handle.throwable)
+      case handle: ExecutionHandle => handle
     }
   }
 
