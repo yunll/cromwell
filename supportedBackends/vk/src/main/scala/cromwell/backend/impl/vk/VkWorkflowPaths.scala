@@ -10,7 +10,7 @@ case class VkWorkflowPaths(override val workflowDescriptor: BackendWorkflowDescr
                            override val config: Config,
                            override val pathBuilders: List[PathBuilder] = WorkflowPaths.DefaultPathBuilders) extends WorkflowPaths {
 
-  val DockerRootString = config.as[Option[String]]("dockerRoot").getOrElse("/cromwell-executions")
+  val DockerRootString = config.as[Option[String]]("dockerRoot").getOrElse(config.as[String]("root"))
   var DockerRoot = PathFactory.buildPath(DockerRootString, pathBuilders)
   if (!DockerRoot.isAbsolute) {
     DockerRoot = PathFactory.buildPath("/".concat(DockerRootString), pathBuilders)
