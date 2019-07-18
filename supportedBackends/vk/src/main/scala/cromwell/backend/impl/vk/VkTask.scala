@@ -49,7 +49,11 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
   }else{
     ""
   }
-  var mountPath = configurationDescriptor.backendConfig.getString("dockerRoot")
+  val mountPath = if (configurationDescriptor.backendConfig.hasPath("dockerRoot")){
+    configurationDescriptor.backendConfig.getString("dockerRoot")
+  }else{
+    configurationDescriptor.backendConfig.getString("root")
+  }
 
   val containers = List(Container(
     name = fullyQualifiedTaskName,
