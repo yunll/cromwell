@@ -381,7 +381,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
               jobLogger.info(s"Job ${jobName} is complete")
               Complete
 
-            case s if s.active.getOrElse(0) == 0 =>
+            case s if s.active.getOrElse(1) == 0 =>
               jobLogger.info(s"Job ${jobName} was canceled")
               Cancelled
 
