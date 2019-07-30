@@ -449,7 +449,14 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
 
   private def syncOutput(path: Path) = {
     if(!vkConfiguration.storagePath.isEmpty) {
-      val destPath = getPath(path.pathAsString.replace(vkJobPaths.workflowPaths.executionRoot.pathAsString, vkConfiguration.storagePath.get)).get
+      val prePath = vkJobPaths.workflowPaths.executionRoot.pathAsString
+      var destPathStr = path.pathAsString
+      if(path.pathAsString.startsWith(prePath)){
+        destPathStr = path.pathAsString.replace(prePath, vkConfiguration.storagePath.get)
+      } else {
+        destPathStr = vkConfiguration.storagePath.get + path.pathAsString
+      }
+      val destPath = getPath(destPathStr).get
       if(vkConfiguration.async) {
         asyncIo.copyAsync(path, destPath)
       } else {
