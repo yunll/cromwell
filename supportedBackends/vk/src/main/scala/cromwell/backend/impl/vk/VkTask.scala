@@ -33,16 +33,34 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
       None
   }
 
-  val resources = Option(Resource.Requirements(
-    requests = Map(
-      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse((ram.getOrElse(2.0)/2).toInt.toString)),
-      "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
-    ),
-    limits = Map(
-      "cpu" -> Quantity(runtimeAttributes.cpu.map(_.value.toString).getOrElse((ram.getOrElse(2.0)/2).toInt.toString)),
-      "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
-    )
-  ))
+  val cpu = runtimeAttributes.cpu.map(_.value.toString).getOrElse((ram.getOrElse(2.0)/2).toInt.toString)
+  val resources = if(runtimeAttributes.gpuType.isEmpty && runtimeAttributes.gpuType.isEmpty){
+    Option(Resource.Requirements(
+      requests = Map(
+        "cpu" -> Quantity(cpu),
+        "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
+      ),
+      limits = Map(
+        "cpu" -> Quantity(cpu),
+        "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
+      )
+    ))
+  } else {
+    val gpu = runtimeAttributes.gpuCount.map(_.value.toString).get
+    val gpuType = runtimeAttributes.gpuType.get
+    Option(Resource.Requirements(
+      requests = Map(
+        "cpu" -> Quantity(cpu),
+        "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
+        gpuType -> Quantity(gpu),
+      ),
+      limits = Map(
+        "cpu" -> Quantity(cpu),
+        "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
+        gpuType -> Quantity(gpu),
+      )
+    ))
+  }
 
   val pvc = if (configurationDescriptor.backendConfig.hasPath("pvc")){
     configurationDescriptor.backendConfig.getString("pvc")
