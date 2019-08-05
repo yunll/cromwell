@@ -4,7 +4,8 @@ import cromwell.backend.{BackendConfigurationDescriptor, BackendJobDescriptor}
 import cromwell.core.path.Path
 import skuber.Resource.Quantity
 import skuber.Volume.{Mount, PersistentVolumeClaimRef}
-import skuber.{Container, LocalObjectReference, Pod, Resource, RestartPolicy, Volume}
+import skuber.batch.Job
+import skuber.{Container, LocalObjectReference, ObjectMeta, Pod, Resource, RestartPolicy, Volume}
 import wdl4s.parser.MemoryUnit
 
 final case class VkTask(jobDescriptor: BackendJobDescriptor,
@@ -100,5 +101,15 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     ))
   )
 
-  val templateSpec = Pod.Template.Spec.named(name=fullyQualifiedTaskName).withPodSpec(podSpec)
+  val labels = Map(
+    "operator-id" -> workflowId.toString
+  )
+
+  val podMetadata = ObjectMeta(name=fullyQualifiedTaskName,labels = labels)
+
+  val templateSpec = Pod.Template.Spec(metadata=podMetadata).withPodSpec(podSpec)
+
+  val jobMetadata = ObjectMeta(name=name,labels = labels)
+
+  val job = Job(metadata=jobMetadata).withTemplate(templateSpec)
 }
