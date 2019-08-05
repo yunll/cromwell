@@ -32,7 +32,7 @@ import wom.values._
 import net.ceedubs.ficus.Ficus._
 import common.collections.EnhancedCollections._
 
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.{Duration, _}
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
@@ -94,8 +94,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     multiplier = 1.1
   )
 
-  private lazy val realDockerImageUsed: String = jobDescriptor.maybeCallCachingEligible.dockerHash.getOrElse(runtimeAttributes.dockerImage)
-  override lazy val dockerImageUsed: Option[String] = Option(realDockerImageUsed)
+  override lazy val dockerImageUsed: Option[String] = Option(runtimeAttributes.dockerImage)
 
   private val namespace = vkConfiguration.namespace
 
@@ -158,11 +157,11 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         vkJobPaths,
         runtimeAttributes,
         commandDirectory,
-        realDockerImageUsed,
+        dockerImageUsed.get,
         jobShell)
     })
 
-    task.map(task => Job(task.name).withTemplate(task.templateSpec))
+    task.map(task => task.job)
   }
 
   def getHmacSH256(key: Array[Byte], content: Array[Byte]): Array[Byte] = {
@@ -404,22 +403,22 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     }
   }
 
-  /**
-    * Process a successful run, as defined by `isSuccess`.
-    *
-    * @param runStatus  The run status.
-    * @param handle     The execution handle.
-    * @param returnCode The return code.
-    * @return The execution handle.
-    */
-  override def handleExecutionSuccess(runStatus: StandardAsyncRunState,
-                             handle: StandardAsyncPendingExecutionHandle,
-                             returnCode: Int)(implicit ec: ExecutionContext): Future[ExecutionHandle] = {
-    super.handleExecutionSuccess(runStatus, handle, returnCode) map {
-      case handle: FailedNonRetryableExecutionHandle => FailedRetryableExecutionHandle(handle.throwable)
-      case handle: ExecutionHandle => handle
-    }
-  }
+//  /**
+//    * Process a successful run, as defined by `isSuccess`.
+//    *
+//    * @param runStatus  The run status.
+//    * @param handle     The execution handle.
+//    * @param returnCode The return code.
+//    * @return The execution handle.
+//    */
+//  override def handleExecutionSuccess(runStatus: StandardAsyncRunState,
+//                             handle: StandardAsyncPendingExecutionHandle,
+//                             returnCode: Int)(implicit ec: ExecutionContext): Future[ExecutionHandle] = {
+//    super.handleExecutionSuccess(runStatus, handle, returnCode) map {
+//      case handle: FailedNonRetryableExecutionHandle => FailedRetryableExecutionHandle(handle.throwable)
+//      case handle: ExecutionHandle => handle
+//    }
+//  }
 
   override def isTerminal(runStatus: VkRunStatus): Boolean = {
     runStatus.isTerminal
@@ -448,7 +447,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   }
 
   private def syncOutput(path: Path) = {
-    if(!vkConfiguration.storagePath.isEmpty) {
+    if(!vkConfiguration.storagePath.isEmpty && !path.pathAsString.startsWith("obs://")) {
       val prePath = vkJobPaths.workflowPaths.executionRoot.pathAsString
       var destPathStr = path.pathAsString
       if(path.pathAsString.startsWith(prePath)){
