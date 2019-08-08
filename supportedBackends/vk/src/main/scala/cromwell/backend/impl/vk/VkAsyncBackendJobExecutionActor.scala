@@ -110,6 +110,15 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         .getOrElse("granular").toUpperCase
     )
   }
+  /**
+    * Localizes the file.
+    */
+  override def preProcessWomFile(womFile: WomFile): WomFile = {
+    getPath(womFile.value) match {
+      case Success(path: Path) if path.uri.getScheme.equals("obs") => womFile
+      case _ => sharedFileSystem.localizeWomFile(vkJobPaths.callInputsRoot, false)(womFile)
+    }
+  }
 
   override def mapCommandLineWomFile(womFile: WomFile): WomFile = {
     womFile.mapFile(value =>
@@ -132,10 +141,10 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
           commandDirectory.pathAsString
         case Success(path: Path) if path.startsWith(vkJobPaths.callExecutionRoot) =>
           vkJobPaths.containerExec(commandDirectory, path.name)
-        case Success(path: Path) if path.startsWith(vkJobPaths.callRoot) =>
-          vkJobPaths.callDockerRoot.resolve(path.name).pathAsString
-        case Success(path: Path) =>
-          vkJobPaths.callInputsDockerRoot.resolve(path.pathWithoutScheme.stripPrefix("/")).pathAsString
+//        case Success(path: Path) if path.startsWith(vkJobPaths.callRoot) =>
+//          vkJobPaths.callDockerRoot.resolve(path.name).pathAsString
+//        case Success(path: Path) =>
+//          vkJobPaths.callInputsDockerRoot.resolve(path.pathWithoutScheme.stripPrefix("/")).pathAsString
         case _ =>
           value
       }
