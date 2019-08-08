@@ -2,12 +2,15 @@ package cromwell.backend.impl.vk
 
 import akka.actor.ActorRef
 import cromwell.backend._
+import cromwell.backend.impl.sfs.config.ConfigBackendFileHashingActor
+import cromwell.backend.sfs.SharedFileSystemCacheHitCopyingActor
 import cromwell.backend.standard._
+import cromwell.backend.standard.callcaching.{StandardCacheHitCopyingActor, StandardFileHashingActor}
 import wom.graph.CommandCallNode
 
 import scala.util.{Success, Try}
 
-case class VkBackendLifecycleActorFactory(name: String, configurationDescriptor: BackendConfigurationDescriptor)
+case class VkBackendLifecycleActorFactory(val name: String, val configurationDescriptor: BackendConfigurationDescriptor)
   extends StandardLifecycleActorFactory {
 
   override lazy val initializationActorClass: Class[_ <: StandardInitializationActor] = classOf[VkInitializationActor]
@@ -31,4 +34,11 @@ case class VkBackendLifecycleActorFactory(name: String, configurationDescriptor:
       case _ => List.empty[Any]
     }
   }
+
+  override lazy val cacheHitCopyingActorClassOption: Option[Class[_ <: StandardCacheHitCopyingActor]] = {
+    Option(classOf[SharedFileSystemCacheHitCopyingActor])
+  }
+
+  override lazy val fileHashingActorClassOption: Option[Class[_ <: StandardFileHashingActor]] = Option(classOf[ConfigBackendFileHashingActor])
+
 }
