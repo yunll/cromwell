@@ -146,7 +146,7 @@ class HwSWRRegistry(config: DockerRegistryConfig) extends DockerRegistryV2Abstra
       val ret = EntityUtils.toString(response.getEntity, "UTF-8")
       val list = new gson.JsonParser().parse(ret).getAsJsonArray
       list.forEach(el => {
-        val digest = el.getAsJsonObject.get("digest").getAsString.substring(HashAlg.length)
+        val digest = el.getAsJsonObject.get("digest").getAsString.substring(HashAlg.length+1)
         val size = el.getAsJsonObject.get("size").getAsLong
         return IO(DockerInfoSuccessResponse(DockerInformation(DockerHashResult(HashAlg, digest), Option(DockerSize(size))), dockerInfoContext.request))
       })

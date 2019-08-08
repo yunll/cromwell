@@ -141,10 +141,10 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
           commandDirectory.pathAsString
         case Success(path: Path) if path.startsWith(vkJobPaths.callExecutionRoot) =>
           vkJobPaths.containerExec(commandDirectory, path.name)
-//        case Success(path: Path) if path.startsWith(vkJobPaths.callRoot) =>
-//          vkJobPaths.callDockerRoot.resolve(path.name).pathAsString
-//        case Success(path: Path) =>
-//          vkJobPaths.callInputsDockerRoot.resolve(path.pathWithoutScheme.stripPrefix("/")).pathAsString
+        case Success(path: Path) if path.startsWith(vkJobPaths.callRoot) =>
+          vkJobPaths.callDockerRoot.resolve(value.substring(vkJobPaths.callRoot.pathAsString.length+1)).pathAsString
+        case Success(path: Path) =>
+          vkJobPaths.callInputsDockerRoot.resolve(path.pathWithoutScheme.stripPrefix("/")).pathAsString
         case _ =>
           value
       }
