@@ -2,14 +2,6 @@ package cromwell.backend.impl.vk
 
 import java.io.FileNotFoundException
 import java.nio.file.FileAlreadyExistsException
-import java.text.SimpleDateFormat
-import java.util.TimeZone
-import java.security.MessageDigest
-import java.math.BigInteger
-import java.util.Date
-
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshalling.Marshal
@@ -35,15 +27,12 @@ import common.collections.EnhancedCollections._
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.{Duration, _}
 import scala.language.postfixOps
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 import skuber.batch.Job
 import skuber.json.batch.format._
 import wdl.draft2.model.FullyQualifiedName
 import skuber.json.PlayJsonSupportForAkkaHttp._
 import cromwell.backend.impl.vk.VkResponseJsonFormatter._
-import org.apache.http.client.methods.HttpPost
-import org.apache.http.entity.StringEntity
-import org.apache.http.impl.client.HttpClients
 
 sealed trait VkRunStatus {
   def isTerminal: Boolean
@@ -99,7 +88,6 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   private val namespace = vkConfiguration.namespace
 
   private val apiServerUrl = s"https://cci.${vkConfiguration.region}.myhuaweicloud.com"
-  private val token = initToken()
 
   override lazy val jobTag: String = jobDescriptor.key.tag
 
@@ -173,88 +161,6 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     task.map(task => task.job)
   }
 
-  def getHmacSH256(key: Array[Byte], content: Array[Byte]): Array[Byte] = {
-    val secret = new SecretKeySpec(key, "HmacSHA256")
-    val mac = Mac.getInstance("HmacSHA256")
-    mac.init(secret)
-    mac.doFinal(content)
-  }
-
-  def initToken(): String = {
-    Await.result[String](withRetry(() => Future.fromTry(Try(getToken())), maxRetries = runtimeAttributes.maxRetries), Duration.Inf)
-  }
-
-  def getToken(): String = {
-    // get UTC time
-    val timeZone = TimeZone.getTimeZone("GMT");
-    val simpleDateFormat = new SimpleDateFormat("yyyyMMdd")
-    val shortSimpleDateFormat = new SimpleDateFormat("HHmmss")
-    simpleDateFormat.setTimeZone(timeZone)
-    shortSimpleDateFormat.setTimeZone(timeZone)
-    val date = new Date()
-    val time = simpleDateFormat.format(date)
-    val shortTime = shortSimpleDateFormat.format(date)
-    val signTime = time + "T" + shortTime + "Z"
-
-    val hwsDate = "X-Hws-Date"
-    val region = ""
-    val service = ""
-    val terminalString = "hws_request"
-    val authHeaderPrefix = "HWS-HMAC-SHA256"
-    val hwsName = "HWS"
-    val query = ""
-
-    val accessKey = vkConfiguration.accessKey
-    val securityKey = vkConfiguration.secretKey
-    val projectName = vkConfiguration.region
-    val iamURL = s"https://iam.${vkConfiguration.region}.myhuaweicloud.com"
-
-    val signedHeaders = "x-hws-date"
-    val canonicalHeadersOut = "x-hws-date:" + signTime + "\n"
-
-    val requestBody = """{"auth":{"identity":{"methods":["hw_access_key"],"hw_access_key":{"access":{"key":"""" + accessKey + """"}}},"scope":{"project":{"name":"""" + projectName + """"}}}}"""
-    val hexBody = String.format("%032x", new BigInteger(1, MessageDigest.getInstance("SHA-256").digest(requestBody.toString.getBytes("UTF-8"))))
-
-    val canonicalRequestStr = "POST" + "\n" + "/v3/auth/tokens/" + "\n" + query + "\n" + canonicalHeadersOut + "\n" + signedHeaders + "\n" + hexBody
-    val canonicalRequestStrToStr = String.format("%032x", new BigInteger(1, MessageDigest.getInstance("SHA-256").digest(canonicalRequestStr.toString.getBytes("UTF-8"))))
-
-    val credentialString = time + "/" + region + "/" + service + "/" + terminalString
-    val stringToSign =
-      s"""${authHeaderPrefix}
-         |${signTime}
-         |${credentialString}
-         |${canonicalRequestStrToStr}""".stripMargin
-
-    // hmac256
-    val secret = hwsName + securityKey
-    val timeData = getHmacSH256(secret.getBytes("UTF-8"), time.getBytes("UTF-8"))
-    val regionData = getHmacSH256(timeData, region.getBytes("UTF-8"))
-    val serviceData = getHmacSH256(regionData, service.getBytes("UTF-8"))
-    val credentials = getHmacSH256(serviceData, terminalString.getBytes("UTF-8"))
-    val toSignature = getHmacSH256(credentials, stringToSign.getBytes("UTF-8"))
-    val signature = toSignature.map("%02x" format _).mkString
-    val signHeader = authHeaderPrefix + " Credential=" + accessKey + "/" + credentialString + ", " + "SignedHeaders=" +  signedHeaders + ", " + "Signature=" + signature
-
-    // http post
-    val httpclient = HttpClients.createDefault()
-    val post = new HttpPost(iamURL + "/v3/auth/tokens")
-    post.setHeader("X-Identity-Sign", signHeader)
-    post.setHeader(hwsDate, signTime)
-    post.setHeader("Content-Type", "application/json;charset=utf8")
-    post.setEntity(new StringEntity(requestBody, "UTF-8"))
-    val response = httpclient.execute(post)
-    for (header <- response.getAllHeaders) {
-      if (header.getName() == "X-Subject-Token") {
-        jobLogger.info("get token succeed.")
-        return header.getValue()
-      }
-    }
-
-    jobLogger.error("get token from IAM failed for: {}", response.getEntity)
-    throw new Exception("using ak/sk to get token from IAM Failed.")
-  }
-
-
   def writeScriptFile(): Future[Unit] = {
     commandScriptContents.fold(
       errors => Future.failed(new RuntimeException(errors.toList.mkString(", "))),
@@ -272,27 +178,27 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     }
 
   private def checkInputs() = {
-    var copies = List[Future[Unit]]()
+    var copies = Map[String, Future[Unit]]()
     (callInputFiles ++ writeFunctionFiles).flatMap {
       case (_, files) => files.flatMap(_.flattenFiles).zipWithIndex.map {
         case (f, _) =>
           getPath(f.value) match {
             case Success(path: Path) if path.uri.getScheme.equals("obs") =>
               val destination = vkJobPaths.callInputsRoot.resolve(path.pathWithoutScheme.stripPrefix("/"))
-              if (!destination.exists) {
+              if (!destination.exists && !copies.contains(destination.pathAsString)) {
                 val future = asyncIo.copyAsync(path, destination)
-                copies = future :: copies
+                copies += (destination.pathAsString -> future)
               }
             case Success(path: Path) if !path.exists =>
               val source = getPath(path.pathAsString.replace(vkJobPaths.workflowPaths.executionRoot.pathAsString, vkConfiguration.storagePath.get)).get
               val future = asyncIo.copyAsync(source, path)
-              copies = future :: copies
+              copies += (path.pathAsString -> future)
             case _ =>
               Nil
           }
       }
     }
-    for(future <- copies){
+    for(future <- copies.values.toList){
       Await.result(future, Duration.Inf)
     }
   }
@@ -310,13 +216,14 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         Future.successful(task)
       })
     jobLogger.warn("taskMessage: {}", taskMessageFuture)
+    vkConfiguration.token.getValue()
     try {
       for {
         _ <- writeScriptFile()
         taskMessage <- taskMessageFuture
         entity <- Marshal(taskMessage).to[RequestEntity]
         ctr <- makeRequest[Job](HttpRequest(method = HttpMethods.POST,
-          headers = List(RawHeader("X-Auth-Token", token)),
+          headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
           uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs",
           entity = entity))
       } yield PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
@@ -357,7 +264,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         returnCodeTmp.delete(true)
     }
     makeRequest[CancelTaskResponse](HttpRequest(method = HttpMethods.DELETE,
-      headers = List(RawHeader("X-Auth-Token", token)),
+      headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
       uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs/${job.jobId}")) onComplete {
       case Success(_) => jobLogger.info("{} Aborted {}", tag: Any, job.jobId)
       case Failure(ex) => jobLogger.warn("{} Failed to abort {}: {}", tag, job.jobId, ex.getMessage)
@@ -373,7 +280,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   }
 
   private def pollStatusAsync(jobName: String): Future[VkRunStatus] = {
-    makeRequest[Job](HttpRequest(headers = List(RawHeader("X-Auth-Token", token)),
+    makeRequest[Job](HttpRequest(headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
       uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs/${jobName}")) map {
       response =>
         val state = response.status
