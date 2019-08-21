@@ -6,6 +6,7 @@ import cromwell.backend.impl.sfs.config.ConfigBackendFileHashingActor
 import cromwell.backend.sfs.SharedFileSystemCacheHitCopyingActor
 import cromwell.backend.standard._
 import cromwell.backend.standard.callcaching.{StandardCacheHitCopyingActor, StandardFileHashingActor}
+import cromwell.core.CallOutputs
 import wom.graph.CommandCallNode
 
 import scala.util.{Success, Try}
@@ -15,6 +16,8 @@ case class VkBackendLifecycleActorFactory(val name: String, val configurationDes
 
   override lazy val initializationActorClass: Class[_ <: StandardInitializationActor] = classOf[VkInitializationActor]
 
+  override lazy val finalizationActorClassOption: Option[Class[_ <: StandardFinalizationActor]] = Option(classOf[VkFinalizationActor])
+
   override lazy val asyncExecutionActorClass: Class[_ <: StandardAsyncExecutionActor] =
     classOf[VkAsyncBackendJobExecutionActor]
 
@@ -22,9 +25,19 @@ case class VkBackendLifecycleActorFactory(val name: String, val configurationDes
 
   val vkConfiguration = new VkConfiguration(configurationDescriptor)
 
+  val vkStatusManager = new VkStatusManager(vkConfiguration)
+
   override def workflowInitializationActorParams(workflowDescriptor: BackendWorkflowDescriptor, ioActor: ActorRef, calls: Set[CommandCallNode],
                                                  serviceRegistryActor: ActorRef, restarting: Boolean): StandardInitializationActorParams = {
-    VkInitializationActorParams(workflowDescriptor, calls, vkConfiguration, serviceRegistryActor, restarting)
+    VkInitializationActorParams(workflowDescriptor, calls, vkConfiguration, serviceRegistryActor, restarting, vkStatusManager)
+  }
+
+  override def workflowFinalizationActorParams(workflowDescriptor: BackendWorkflowDescriptor, ioActor: ActorRef, calls: Set[CommandCallNode],
+                                      jobExecutionMap: JobExecutionMap, workflowOutputs: CallOutputs,
+                                      initializationDataOption: Option[BackendInitializationData]):
+  VkFinalizationActorParams = {
+    VkFinalizationActorParams(workflowDescriptor, calls, jobExecutionMap, workflowOutputs,
+      initializationDataOption, vkConfiguration, vkStatusManager)
   }
 
   override def dockerHashCredentials(workflowDescriptor: BackendWorkflowDescriptor, initializationData: Option[BackendInitializationData]) = {

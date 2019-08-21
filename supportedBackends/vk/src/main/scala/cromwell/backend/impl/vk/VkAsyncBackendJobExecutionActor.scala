@@ -2,26 +2,24 @@ package cromwell.backend.impl.vk
 
 import java.io.FileNotFoundException
 import java.nio.file.FileAlreadyExistsException
+import java.util.concurrent.ExecutionException
+
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshalling.Marshal
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
 import akka.http.scaladsl.model.{RequestEntity, _}
-import cats.syntax.apply._
 import akka.stream.ActorMaterializer
 import akka.util.ByteString
-import common.validation.ErrorOr.ErrorOr
-import common.validation.Validation._
+import com.google.gson.JsonObject
 import cromwell.backend.BackendJobLifecycleActor
 import cromwell.backend.async.{AbortedExecutionHandle, ExecutionHandle, FailedNonRetryableExecutionHandle, FailedRetryableExecutionHandle, PendingExecutionHandle}
 import cromwell.backend.standard.{StandardAsyncExecutionActor, StandardAsyncExecutionActorParams, StandardAsyncJob}
 import cromwell.core.path.{DefaultPathBuilder, Path}
-import cromwell.core.retry.SimpleExponentialBackoff
-import cromwell.core.retry.Retry._
+import cromwell.core.retry.{Retry, SimpleExponentialBackoff}
 import wom.values.WomFile
 import wom.values._
-import net.ceedubs.ficus.Ficus._
 import common.collections.EnhancedCollections._
 
 import scala.concurrent.{Await, Future}
@@ -33,6 +31,7 @@ import skuber.json.batch.format._
 import wdl.draft2.model.FullyQualifiedName
 import skuber.json.PlayJsonSupportForAkkaHttp._
 import cromwell.backend.impl.vk.VkResponseJsonFormatter._
+import cromwell.core.CromwellFatalExceptionMarker
 
 sealed trait VkRunStatus {
   def isTerminal: Boolean
@@ -72,18 +71,22 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   def statusEquivalentTo(thiz: StandardAsyncRunState)(that: StandardAsyncRunState): Boolean = thiz == that
 
   override lazy val pollBackOff = SimpleExponentialBackoff(
-    initialInterval = 1 seconds,
-    maxInterval = 5 minutes,
-    multiplier = 1.1
+    initialInterval = 10 seconds,
+    maxInterval = 20 seconds,
+    multiplier = 1.1,
+    randomizationFactor = 0.1
   )
 
   override lazy val executeOrRecoverBackOff = SimpleExponentialBackoff(
-    initialInterval = 3 seconds,
-    maxInterval = 30 seconds,
-    multiplier = 1.1
+    initialInterval = 20 seconds,
+    maxInterval = 1 minutes,
+    multiplier = 1.2,
+    randomizationFactor = 0.3
   )
 
   override lazy val dockerImageUsed: Option[String] = Option(runtimeAttributes.dockerImage)
+
+  private val workflowId = workflowDescriptor.id.toString
 
   private val namespace = vkConfiguration.namespace
 
@@ -91,13 +94,6 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
 
   override lazy val jobTag: String = jobDescriptor.key.tag
 
-  private val outputMode = validate {
-    OutputMode.withName(
-      configurationDescriptor.backendConfig
-        .getAs[String]("output-mode")
-        .getOrElse("granular").toUpperCase
-    )
-  }
   /**
     * Localizes the file.
     */
@@ -146,19 +142,17 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     }
   }
 
-  def createTaskMessage(): ErrorOr[Job] = {
-    val task = (commandScriptContents, outputMode).mapN({
-      case (_, _) => VkTask(
-        jobDescriptor,
-        configurationDescriptor,
-        vkJobPaths,
-        runtimeAttributes,
-        commandDirectory,
-        dockerImageUsed.get,
-        jobShell)
-    })
-
-    task.map(task => task.job)
+  def createTaskMessage(): Future[Job] = {
+    val task = VkTask(
+      jobDescriptor,
+      configurationDescriptor,
+      vkJobPaths,
+      runtimeAttributes,
+      commandDirectory,
+      dockerImageUsed.get,
+      jobShell
+    )
+    Future.successful(task.job)
   }
 
   def writeScriptFile(): Future[Unit] = {
@@ -203,19 +197,13 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     }
   }
 
+
+
   override def executeAsync(): Future[ExecutionHandle] = {
     // create call exec dir
     vkJobPaths.callExecutionRoot.createPermissionedDirectories()
     checkInputs()
-    val taskMessageFuture = createTaskMessage().fold(
-      errors => Future.failed(new RuntimeException(errors.toList.mkString(", "))),
-      task => {
-//        if(initializationData.restarting) {
-//          restartJob(task.name)
-//        }
-        Future.successful(task)
-      })
-    jobLogger.warn("taskMessage: {}", taskMessageFuture)
+    val taskMessageFuture = createTaskMessage()
     vkConfiguration.token.getValue()
     try {
       for {
@@ -226,7 +214,10 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
           headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
           uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs",
           entity = entity))
-      } yield PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
+      } yield {
+        vkStatusManager.setStatus(workflowId, ctr)
+        PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
+      }
     } catch {
       case ex: Exception => Future.successful(FailedRetryableExecutionHandle(ex))
       case t: Throwable => throw t
@@ -280,29 +271,41 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   }
 
   private def pollStatusAsync(jobName: String): Future[VkRunStatus] = {
-    makeRequest[Job](HttpRequest(headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
-      uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs/${jobName}")) map {
-      response =>
-        val state = response.status
-        if(state.isEmpty){
+    val job = vkStatusManager.getStatus(workflowId, jobName)
+    if(job.isEmpty){
+      Future.failed(new Exception(s"Job ${jobName} is not found!"))
+    }else {
+      val vkRunStatus = {
+        val status = job.get.get("status")
+        if (status.isJsonNull) {
           Running
-        }else {
-          state.get match {
-            case s if s.failed.getOrElse(0) > 0 =>
+        } else {
+          status.getAsJsonObject match {
+            case s if getVal(s, "failed").getOrElse(0) > 0 =>
               jobLogger.info(s"VK reported an error for Job ${jobName}: '$s'")
               FailedOrError
-
-            case s if s.succeeded.getOrElse(0) > 0 =>
+            case s if getVal(s, "succeeded").getOrElse(0) > 0 =>
               jobLogger.info(s"Job ${jobName} is complete")
               Complete
 
-            case s if s.active.getOrElse(1) == 0 =>
+            case s if getVal(s, "active").getOrElse(1) == 0 =>
               jobLogger.info(s"Job ${jobName} was canceled")
               Cancelled
 
             case _ => Running
           }
         }
+      }
+      Future.successful(vkRunStatus)
+    }
+  }
+
+  private def getVal(jsObject: JsonObject, key: String): Option[Int] ={
+    val el = jsObject.get(key)
+    if(el == null || el.isJsonNull){
+      None
+    }else{
+      Some(el.getAsInt)
     }
   }
 
@@ -319,22 +322,22 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     }
   }
 
-//  /**
-//    * Process a successful run, as defined by `isSuccess`.
-//    *
-//    * @param runStatus  The run status.
-//    * @param handle     The execution handle.
-//    * @param returnCode The return code.
-//    * @return The execution handle.
-//    */
-//  override def handleExecutionSuccess(runStatus: StandardAsyncRunState,
-//                             handle: StandardAsyncPendingExecutionHandle,
-//                             returnCode: Int)(implicit ec: ExecutionContext): Future[ExecutionHandle] = {
-//    super.handleExecutionSuccess(runStatus, handle, returnCode) map {
-//      case handle: FailedNonRetryableExecutionHandle => FailedRetryableExecutionHandle(handle.throwable)
-//      case handle: ExecutionHandle => handle
-//    }
-//  }
+  //  /**
+  //    * Process a successful run, as defined by `isSuccess`.
+  //    *
+  //    * @param runStatus  The run status.
+  //    * @param handle     The execution handle.
+  //    * @param returnCode The return code.
+  //    * @return The execution handle.
+  //    */
+  //  override def handleExecutionSuccess(runStatus: StandardAsyncRunState,
+  //                             handle: StandardAsyncPendingExecutionHandle,
+  //                             returnCode: Int)(implicit ec: ExecutionContext): Future[ExecutionHandle] = {
+  //    super.handleExecutionSuccess(runStatus, handle, returnCode) map {
+  //      case handle: FailedNonRetryableExecutionHandle => FailedRetryableExecutionHandle(handle.throwable)
+  //      case handle: ExecutionHandle => handle
+  //    }
+  //  }
 
   override def isTerminal(runStatus: VkRunStatus): Boolean = {
     runStatus.isTerminal
@@ -349,6 +352,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
 
   override def mapOutputWomFile(womFile: WomFile): WomFile = {
     womFile mapFile { path =>
+//      val path = "/Users/dts/cromwell/cromwell/vk.conf"
       val absPath = getPath(path) match {
         case Success(absoluteOutputPath) if absoluteOutputPath.isAbsolute => absoluteOutputPath
         case _ => vkJobPaths.callExecutionRoot.resolve(path)
@@ -382,7 +386,14 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
 
   private def makeRequest[A](request: HttpRequest)(implicit um: Unmarshaller[ResponseEntity, A]): Future[A] = {
     for {
-      response <- withRetry(() => Http().singleRequest(request))
+      response <- withRetry(() => {
+        val rsp = Await.result(Http().singleRequest(request), Duration.Inf)
+        if (rsp.status.isFailure() && rsp.status.intValue() == 429) {
+          Future.failed(new RateLimitException(rsp.status.defaultMessage()))
+        } else {
+          Future.successful(rsp)
+        }
+      })
       data <- if (response.status.isFailure()) {
         response.entity.dataBytes.runFold(ByteString(""))(_ ++ _).map(_.utf8String) flatMap { errorBody =>
           Future.failed(new RuntimeException(s"Failed VK request: Code ${response.status.intValue()}, Body = $errorBody"))
@@ -392,4 +403,28 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
       }
     } yield data
   }
+
+  private def withRetry[A](work: () => Future[A]): Future[A] = {
+    Retry.withRetry(work, maxRetries=Option(3), isTransient = isTransient, isFatal = isFatal, backoff = pollBackOff)(context.system)
+  }
+
+  override def isTransient(throwable: Throwable): Boolean = {
+    throwable match {
+      case _: RateLimitException => true
+      case _ => false
+    }
+  }
+
+  override def isFatal(throwable: Throwable): Boolean = throwable match {
+    case _: RateLimitException => false
+    case _: Error => true
+    case _: RuntimeException => false
+    case _: InterruptedException => true
+    case _: CromwellFatalExceptionMarker => true
+    case e: ExecutionException => Option(e.getCause).exists(isFatal)
+    case _ => false
+  }
+
 }
+
+private case class RateLimitException(message: String) extends RuntimeException

@@ -40,4 +40,6 @@ trait VkJobCachingActorHelper extends StandardCachingActorHelper {
   lazy val vkConfiguration: VkConfiguration = initializationData.vkConfiguration
 
   lazy val runtimeAttributes = VkRuntimeAttributes(validatedRuntimeAttributes, vkConfiguration.runtimeConfig)
+
+  lazy val vkStatusManager = initializationData.vkStatusManager
 }
