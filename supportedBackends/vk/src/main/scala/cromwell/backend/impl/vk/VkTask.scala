@@ -34,7 +34,7 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
       None
   }
 
-  val cpu = runtimeAttributes.cpu.map(_.value.toString).getOrElse((ram.getOrElse(2.0)/2).toInt.toString)
+  val cpu = runtimeAttributes.cpu.getOrElse(ram.getOrElse(2.0)/2).toString
   val resources = if(runtimeAttributes.gpuType.isEmpty && runtimeAttributes.gpuType.isEmpty){
     Option(Resource.Requirements(
       requests = Map(

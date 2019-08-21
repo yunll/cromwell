@@ -15,7 +15,7 @@ case class VkRuntimeAttributes(continueOnReturnCode: ContinueOnReturnCode,
                                dockerImage: String,
                                dockerWorkingDir: Option[String],
                                failOnStderr: Boolean,
-                               cpu: Option[Int Refined Positive],
+                               cpu: Option[Double],
                                memory: Option[MemorySize],
                                disk: Option[MemorySize],
                                maxRetries: Option[Int],
@@ -27,7 +27,7 @@ object VkRuntimeAttributes {
   val DockerWorkingDirKey = "dockerWorkingDir"
   val DiskSizeKey = "disk"
 
-  private def cpuValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[Int Refined Positive] = CpuValidation.optional
+  private def cpuValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[Double] = new FloatRuntimeAttributesValidation("cpu").optional
 
   private def gpuCountValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[Int Refined Positive] = new PositiveIntRuntimeAttributesValidation("gpuCount").optional
 
@@ -62,7 +62,7 @@ object VkRuntimeAttributes {
   def apply(validatedRuntimeAttributes: ValidatedRuntimeAttributes, backendRuntimeConfig: Option[Config]): VkRuntimeAttributes = {
     val docker: String = RuntimeAttributesValidation.extract(dockerValidation, validatedRuntimeAttributes)
     val dockerWorkingDir: Option[String] = RuntimeAttributesValidation.extractOption(dockerWorkingDirValidation.key, validatedRuntimeAttributes)
-    val cpu: Option[Int Refined Positive] = RuntimeAttributesValidation.extractOption(cpuValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
+    val cpu: Option[Double] = RuntimeAttributesValidation.extractOption(cpuValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
     val gpuCount: Option[Int Refined Positive] = RuntimeAttributesValidation.extractOption(gpuCountValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
     val gpuType: Option[String] = RuntimeAttributesValidation.extractOption(gpuTypeValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
     val memory: Option[MemorySize] = RuntimeAttributesValidation.extractOption(memoryValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
