@@ -34,20 +34,18 @@ final case class Token(accessKey: String, secretKey:String, region: String){
 
   var time = -1L
 
-  val date = new Date()
-
-  val overtime = 20*60*60*1000
+  val overtime = 10*60*60*1000
 
   def getValue(): String = {
     if(value.isEmpty || isExpire(time)){
       value = initToken()
-      time = date.getTime
+      time = new Date().getTime
     }
     value
   }
 
   def isExpire(l: Long): Boolean = {
-    if(time < 0L || date.getTime - l > overtime){
+    if(time < 0L || new Date().getTime - l > overtime){
       true
     } else {
       false
