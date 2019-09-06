@@ -1,4 +1,0 @@
-{
-  "wf_chain.firstInput": "obs://cromwell/hello.wdl",
-  "wf_chain.firstInput2": "obs://cromwell/hello.inputs"
-}
