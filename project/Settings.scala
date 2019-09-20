@@ -95,7 +95,7 @@ object Settings {
       sys.env.get("CROMWELL_SBT_ASSEMBLY_LOG_LEVEL").flatMap(Level.apply).getOrElse((logLevel in assembly).value)
   )
 
-  val Scala2_12Version = "2.12.6"
+  val Scala2_12Version = "2.12.9"
   val ScalaVersion = Scala2_12Version
   val sharedSettings = ReleasePlugin.projectSettings ++
     cromwellVersionWithGit ++ artifactorySettings ++ List(
@@ -178,7 +178,6 @@ object Settings {
     }
   }
 
-
   // Adds settings to build the root project
   implicit class ProjectRootSettings(val project: Project) extends AnyVal {
     def withRootSettings(): Project = {
@@ -194,6 +193,14 @@ object Settings {
       )
 
       buildProject(project, "root", Nil, builders)
+    }
+
+    /**
+      * After aggregations have been added to the root project, we can do additional tasks like checking if every
+      * sub-project in build.sbt will also be tested by the root-aggregated `sbt test` command.
+      */
+    def withAggregateSettings(): Project = {
+      project.settings(aggregateSettings(project))
     }
   }
 
