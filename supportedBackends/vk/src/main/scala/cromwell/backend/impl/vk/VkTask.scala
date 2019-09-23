@@ -18,6 +18,7 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
 
   private val workflowDescriptor = jobDescriptor.workflowDescriptor
   private val workflowId = workflowDescriptor.id
+  private val rootWorkflowId = workflowDescriptor.rootWorkflowId
   private val fullyQualifiedTaskName = jobDescriptor.taskCall.localName.toLowerCase()
   private val index = jobDescriptor.key.index.getOrElse(0)
   private val attempt = jobDescriptor.key.attempt
@@ -102,7 +103,9 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
   )
 
   val labels = Map(
-    "operator-id" -> workflowId.toString
+    "gcs-wdlexec-id" -> rootWorkflowId.toString,
+    "gcs-wdlexec-name" -> workflowDescriptor.rootWorkflow.name,
+    "gcs-wdl-name" -> "cromwell"
   )
 
   val podMetadata = ObjectMeta(name=fullyQualifiedTaskName,labels = labels)
