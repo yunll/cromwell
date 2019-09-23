@@ -86,7 +86,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
 
   override lazy val dockerImageUsed: Option[String] = Option(runtimeAttributes.dockerImage)
 
-  private val workflowId = workflowDescriptor.id.toString
+  private val workflowId = workflowDescriptor.rootWorkflowId.toString
 
   private val namespace = vkConfiguration.namespace
 
