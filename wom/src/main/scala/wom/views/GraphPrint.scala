@@ -2,12 +2,19 @@ package wom.views
 
 import java.util.concurrent.atomic.AtomicInteger
 
+<<<<<<< HEAD
 import cats.syntax.all._
 import cats.instances.set._
 import cats.instances.list._
 import cats.Monoid
 import wom.callable.ExecutableCallable
 import wom.graph.GraphNodePort.{ConditionalOutputPort, OutputPort, ScatterGathererPort}
+=======
+import cats.implicits._
+import cats.Monoid
+import wom.callable.ExecutableCallable
+import wom.graph.GraphNodePort.{OutputPort, ScatterGathererPort}
+>>>>>>> support wdl1.0
 import wom.graph.expression.ExpressionNode
 import wom.graph._
 import wom.types.WomType
@@ -17,11 +24,14 @@ final class GraphPrint(executableCallable: ExecutableCallable) {
 
   def dotString = WorkflowDigraph(executableCallable.name, listAllGraphNodes(executableCallable.graph, new AtomicInteger(0), Map.empty)).dotString
 
+<<<<<<< HEAD
   // A "monoid" is just a fancy way of saying "thing you can add together".
   // The cats library makes it easy to turn case classes into Monoids - ie into "things you can add together".
   // Adding one NodesAndLinks collection to another is the same as adding together the nodes set, and the links set, of each,
   //  and making a new NodesAndLinks out of the combined results.
   // This line uses cats to allow NodesAndLinks to be added together, which is then used later on by calls to "foldMap".
+=======
+>>>>>>> support wdl1.0
   implicit val nodeAndLinkMonoid: Monoid[NodesAndLinks] = cats.derived.MkMonoid[NodesAndLinks]
 
   /*
@@ -31,11 +41,17 @@ final class GraphPrint(executableCallable: ExecutableCallable) {
                                 clusterCounter: AtomicInteger,
                                 availableScatterVariables: Map[ScatterVariableNode, DotScatterVariableNode]): NodesAndLinks = {
 
+<<<<<<< HEAD
     graph.nodes.toList.filter(worthDisplaying).foldMap {
       case ccn: CommandCallNode => NodesAndLinks(Set(DotCallNode(ccn)), upstreamLinks(ccn, DotCallNode(ccn), availableScatterVariables))
       case scn: WorkflowCallNode => NodesAndLinks(Set(DotSubworkflowCallNode(scn)), upstreamLinks(scn, DotSubworkflowCallNode(scn), availableScatterVariables))
       case s: ScatterNode => handleScatter(s, clusterCounter, availableScatterVariables)
       case c: ConditionalNode => handleConditional(c, clusterCounter, availableScatterVariables)
+=======
+    graph.nodes.toList foldMap {
+      case ccn: CommandCallNode => NodesAndLinks(Set(DotCallNode(ccn)), upstreamLinks(ccn, DotCallNode(ccn), availableScatterVariables))
+      case s: ScatterNode => handleScatter(s, clusterCounter, availableScatterVariables)
+>>>>>>> support wdl1.0
       case _ => nodeAndLinkMonoid.empty
     }
   }
@@ -71,6 +87,7 @@ final class GraphPrint(executableCallable: ExecutableCallable) {
       links = scatterExpressionNodesAndLinks.links ++ innerGraphNodesAndLinks.links
     )
   }
+<<<<<<< HEAD
 
   def handleConditional(conditionalNode: ConditionalNode,
                         clusterCounter: AtomicInteger,
@@ -94,11 +111,21 @@ final class GraphPrint(executableCallable: ExecutableCallable) {
     )
   }
 
+=======
+>>>>>>> support wdl1.0
 }
 
 object GraphPrint {
   final case class DotLink(from: DotNode, to: DotNode) {
+<<<<<<< HEAD
     def dotString = s"${from.id} -> ${to.id}"
+=======
+    def dotString = if(to.isInstanceOf[DotScatterVariableNode]) {
+      s""""${from.id}" -> "${to.id}" [lhead=cluster_${to.asInstanceOf[DotScatterVariableNode].clusterNumber}]"""
+    } else {
+      s""""${from.id}" -> "${to.id}""""
+    }
+>>>>>>> support wdl1.0
   }
 
   final case class NodesAndLinks(nodes: Set[DotNode], links: Set[DotLink])
@@ -106,6 +133,7 @@ object GraphPrint {
   final case class WorkflowDigraph(workflowName: String, digraph: NodesAndLinks) {
     def dotString: String =
       s"""|digraph $workflowName {
+<<<<<<< HEAD
           |  #rankdir=LR;
           |  compound=true;
           |
@@ -113,20 +141,33 @@ object GraphPrint {
           |  ${digraph.links.toList.flatMap(_.dotString.lines).mkString(System.lineSeparator + "  ")}
           |
           |  # Nodes
+=======
+          |  compound=true;
+          |
+          |  ${digraph.links.toList.flatMap(_.dotString.lines).mkString(System.lineSeparator + "  ")}
+          |
+>>>>>>> support wdl1.0
           |  ${digraph.nodes.toList.flatMap(_.dotString.lines).mkString(System.lineSeparator + "  ")}
           |}""".stripMargin
   }
 
   sealed trait DotNode { def id: String; def dotString: String }
+<<<<<<< HEAD
 
   final case class DotCallNode(callName: String) extends DotNode {
     override def id: String = s"CALL_$callName"
     def dotString = s"""$id [label="call $callName"]"""
+=======
+  final case class DotCallNode(callName: String) extends DotNode {
+    override def id: String = s"call $callName"
+    def dotString = s""""$id""""
+>>>>>>> support wdl1.0
   }
   object DotCallNode {
     def apply(ccn: CommandCallNode): DotCallNode = DotCallNode(ccn.localName)
   }
 
+<<<<<<< HEAD
   final case class DotSubworkflowCallNode(callName: String) extends DotNode {
     override def id: String = s"CALL_$callName"
     def dotString = s"""$id [label="call $callName";shape="oval";peripheries=2]"""
@@ -149,11 +190,20 @@ object GraphPrint {
   }
   object DotConditionalExpressionNode {
     def apply(en: ExpressionNode, clusterNumber: Int): DotConditionalExpressionNode = DotConditionalExpressionNode(en.womType, escapeQuotes(en.womExpression.sourceString), clusterNumber)
+=======
+  final case class DotScatterVariableNode(womType: WomType, valueName: String, clusterNumber: Int, range: String) extends DotNode {
+    override def id: String = s"""scatter ($range)"""
+    def dotString = s""""$id" [shape="plaintext"]"""
+  }
+  object DotScatterVariableNode {
+    def apply(svn: ScatterVariableNode, clusterNumber: Int): DotScatterVariableNode = DotScatterVariableNode(svn.womType, svn.identifier.localName.value, clusterNumber, svn.scatterExpressionNode.womExpression.sourceString)
+>>>>>>> support wdl1.0
   }
 
   final case class DotScatterNode(id: String, nodes: Set[DotNode]) extends DotNode {
     override def dotString: String =
       s"""subgraph $id {
+<<<<<<< HEAD
           |  style="filled,solid";
           |  fillcolor=white;
           |  ${nodes.toList.flatMap(_.dotString.lines).mkString(System.lineSeparator() + "  ")}
@@ -165,6 +215,8 @@ object GraphPrint {
       s"""subgraph $id {
          |  style="filled,dashed";
          |  fillcolor=white;
+=======
+>>>>>>> support wdl1.0
          |  ${nodes.toList.flatMap(_.dotString.lines).mkString(System.lineSeparator() + "  ")}
          |}""".stripMargin
   }
@@ -174,17 +226,27 @@ object GraphPrint {
                     availableScatterVariables: Map[ScatterVariableNode, DotScatterVariableNode]): Set[DotLink] = {
     def relevantAsUpstream(nodeToLink: GraphNode): Set[DotNode] = nodeToLink match {
       case ccn: CommandCallNode => Set(DotCallNode(ccn))
+<<<<<<< HEAD
       case scn: WorkflowCallNode => Set(DotSubworkflowCallNode(scn))
       case en: ExpressionNode => upstreamLinksforNode(en)
       case svn: ScatterVariableNode => Set(availableScatterVariables(svn))
+=======
+      case en: ExpressionNode => upstreamLinksforNode(en)
+//      case svn: ScatterVariableNode => Set(availableScatterVariables(svn))
+>>>>>>> support wdl1.0
       case ogin: OuterGraphInputNode => upstreamPortToRelevantNodes(ogin.linkToOuterGraph)
 
       case _ => Set.empty[DotNode]
     }
 
     def upstreamPortToRelevantNodes(p: OutputPort) = p match {
+<<<<<<< HEAD
       case gatherPort: ScatterGathererPort => relevantAsUpstream(gatherPort.outputToGather.singleUpstreamNode)
       case conditionalOutputPort: ConditionalOutputPort => relevantAsUpstream(conditionalOutputPort.outputToExpose.singleUpstreamNode)
+=======
+      case gatherPort: ScatterGathererPort =>
+        relevantAsUpstream(gatherPort.outputToGather.singleUpstreamNode)
+>>>>>>> support wdl1.0
       case other =>
         relevantAsUpstream(other.graphNode)
     }
@@ -194,6 +256,7 @@ object GraphPrint {
   }
 
   def hasCallAncestor(g: GraphNode) = g.upstreamAncestry.exists(_.isInstanceOf[CommandCallNode])
+<<<<<<< HEAD
 
   def escapeQuotes(s: String) = s.replace("\"", "\\\"")
 
@@ -205,3 +268,6 @@ object GraphPrint {
     case _ => false
   }
 }
+=======
+}
+>>>>>>> support wdl1.0
