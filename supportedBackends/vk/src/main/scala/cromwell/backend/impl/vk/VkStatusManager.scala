@@ -98,7 +98,7 @@ final case class VkStatusItem(workflowId: String, context: ActorContext, vkConfi
   def fetch(workflowId: String)= {
     println(s"fetch ${workflowId} begin at ${new Date().toString}")
     makeRequest(HttpRequest(headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
-      uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs?labelSelector=gcs-wdlexec-idd%3D${workflowId}")) map {
+      uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs?labelSelector=gcs-wdlexec-id%3D${workflowId}")) map {
       response => {
         println(s"fetch ${workflowId} end at ${new Date().toString}")
         val temp = TrieMap[String, JsonObject]()

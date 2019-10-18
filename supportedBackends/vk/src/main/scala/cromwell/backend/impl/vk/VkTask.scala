@@ -102,10 +102,19 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     ))
   )
 
+  val wdlExecName = if(workflowDescriptor.rootWorkflow.name.length > 64){
+    workflowDescriptor.rootWorkflow.name.substring(0,64);
+  } else {
+    workflowDescriptor.rootWorkflow.name
+  }
+
   val labels = Map(
     "gcs-wdlexec-id" -> rootWorkflowId.toString,
-    "gcs-wdlexec-name" -> workflowDescriptor.rootWorkflow.name,
-    "gcs-wdl-name" -> "cromwell"
+    "system-tag.cci.io/gcs-wdlexec-id" -> rootWorkflowId.toString,
+    "system-tag.cci.io/gcs-wdlexec-name" -> wdlExecName,
+    "gcs-wdl-name" -> "cromwell",
+    "gcs.task.name" -> name,
+    "gcs.source.name" -> fullyQualifiedTaskName
   )
 
   val podMetadata = ObjectMeta(name=fullyQualifiedTaskName,labels = labels)

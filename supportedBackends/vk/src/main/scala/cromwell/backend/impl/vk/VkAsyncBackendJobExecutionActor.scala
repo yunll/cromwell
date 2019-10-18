@@ -202,25 +202,29 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   override def executeAsync(): Future[ExecutionHandle] = {
     // create call exec dir
     vkJobPaths.callExecutionRoot.createPermissionedDirectories()
-    checkInputs()
-    val taskMessageFuture = createTaskMessage()
-    vkConfiguration.token.getValue()
     try {
-      for {
-        _ <- writeScriptFile()
-        taskMessage <- taskMessageFuture
-        entity <- Marshal(taskMessage).to[RequestEntity]
-        ctr <- makeRequest[Job](HttpRequest(method = HttpMethods.POST,
-          headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
-          uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs",
-          entity = entity))
-      } yield {
-        vkStatusManager.setStatus(workflowId, ctr)
-        PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
+      checkInputs()
+
+    val taskMessageFuture = createTaskMessage()
+      try{
+        for {
+          _ <- writeScriptFile()
+          taskMessage <- taskMessageFuture
+          entity <- Marshal(taskMessage).to[RequestEntity]
+          ctr <- makeRequest[Job](HttpRequest(method = HttpMethods.POST,
+            headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
+            uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs",
+            entity = entity))
+        } yield {
+          vkStatusManager.setStatus(workflowId, ctr)
+          PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
+        }
+      } catch {
+        case ex: Exception => Future.successful(FailedRetryableExecutionHandle(ex))
+        case t: Throwable => throw t
       }
     } catch {
-      case ex: Exception => Future.successful(FailedRetryableExecutionHandle(ex))
-      case t: Throwable => throw t
+      case t: Throwable => Future.successful(FailedNonRetryableExecutionHandle(t))
     }
   }
 
