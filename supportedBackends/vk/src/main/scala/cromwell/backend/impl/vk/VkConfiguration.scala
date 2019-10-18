@@ -9,8 +9,10 @@ import cromwell.backend.BackendConfigurationDescriptor
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import org.apache.http.client.methods.HttpPost
+import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, TrustSelfSignedStrategy}
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClients
+import org.apache.http.ssl.SSLContextBuilder
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
@@ -77,7 +79,12 @@ final case class Token(accessKey: String, secretKey:String, region: String){
     val query = ""
 
     val projectName = region
-    val iamURL = s"https://iam.${projectName}.myhuaweicloud.com"
+
+    val iamURL = if(projectName == "cn-north-7"){
+      "https://iam.myhuaweicloud.com"
+    } else {
+      s"https://iam.${projectName}.myhuaweicloud.com"
+    }
 
     val signedHeaders = "x-hws-date"
     val canonicalHeadersOut = "x-hws-date:" + signTime + "\n"
@@ -106,7 +113,9 @@ final case class Token(accessKey: String, secretKey:String, region: String){
     val signHeader = authHeaderPrefix + " Credential=" + accessKey + "/" + credentialString + ", " + "SignedHeaders=" +  signedHeaders + ", " + "Signature=" + signature
 
     // http post
-    val httpclient = HttpClients.createDefault()
+    val builder = SSLContextBuilder.create().loadTrustMaterial(null,new TrustSelfSignedStrategy())
+    val sslsf = new SSLConnectionSocketFactory(builder.build())
+    val httpclient = HttpClients.custom().setSSLSocketFactory(sslsf).build()
     val post = new HttpPost(iamURL + "/v3/auth/tokens")
     post.setHeader("X-Identity-Sign", signHeader)
     post.setHeader(hwsDate, signTime)

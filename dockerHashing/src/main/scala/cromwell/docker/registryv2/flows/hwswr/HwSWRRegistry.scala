@@ -29,7 +29,6 @@ class HwSWRRegistry(config: DockerRegistryConfig) extends DockerRegistryV2Abstra
   val HashAlg = "sha256"
   val regionPattern = """[^\s]+"""
   val validSWRHosts: Regex = s"""swr.($regionPattern).myhuaweicloud.com""".r
-  implicit val f = new io.circe.jawn.CirceSupportParser(None).facade
 
   def isValidSWRHost(host: Option[String]): Boolean = {
     host.exists {

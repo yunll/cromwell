@@ -15,7 +15,12 @@ final case class ObsPathBuilderFactory(globalConfig: Config, instanceConfig: Con
     validate { if(instanceConfig.hasPath("auth.endpoint")){
       instanceConfig.as[String]("auth.endpoint")
     } else {
-      s"obs.${globalConfig.as[String]("backend.providers.VK.config.region")}.myhuaweicloud.com"
+      val region = globalConfig.as[String]("backend.providers.VK.config.region")
+      if(region == "cn-north-7"){
+        s"obs.${region}.ulanqab.huawei.com"
+      }else{
+        s"obs.${region}.myhuaweicloud.com"
+      }
     } },
     validate { if(instanceConfig.hasPath("auth.accessKey")){
       instanceConfig.as[String]("auth.accessKey")
