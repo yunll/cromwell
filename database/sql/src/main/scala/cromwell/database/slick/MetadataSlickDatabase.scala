@@ -2,6 +2,7 @@ package cromwell.database.slick
 
 import java.sql.Timestamp
 
+import cats.implicits._
 import com.typesafe.config.{Config, ConfigFactory}
 import cromwell.database.slick.tables.MetadataDataAccessComponent
 import cromwell.database.sql.MetadataSqlDatabase
@@ -305,6 +306,11 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
     } yield summaryPosition
   }
 
+  override def updateMetadataArchiveStatus(workflowExecutionUuid: String, newArchiveStatus: Option[String]): Future[Int] = {
+    val action = dataAccess.metadataArchiveStatusByWorkflowId(workflowExecutionUuid).update(newArchiveStatus)
+    runTransaction(action)
+  }
+
   override def getWorkflowStatus(workflowExecutionUuid: String)
                                 (implicit ec: ExecutionContext): Future[Option[String]] = {
     val action = dataAccess.workflowStatusesForWorkflowExecutionUuid(workflowExecutionUuid).result.headOption
@@ -318,8 +324,6 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
     runTransaction(action).map(_.toMap)
   }
 
-
-
   override def queryWorkflowSummaries(parentIdWorkflowMetadataKey: String,
                                       workflowStatuses: Set[String],
                                       workflowNames: Set[String],
@@ -331,13 +335,14 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
                                       submissionTimestampOption: Option[Timestamp],
                                       startTimestampOption: Option[Timestamp],
                                       endTimestampOption: Option[Timestamp],
+                                      metadataArchiveStatus: Set[Option[String]],
                                       includeSubworkflows: Boolean,
                                       page: Option[Int],
                                       pageSize: Option[Int])
                                      (implicit ec: ExecutionContext): Future[Seq[WorkflowMetadataSummaryEntry]] = {
 
     val action = dataAccess.queryWorkflowMetadataSummaryEntries(parentIdWorkflowMetadataKey, workflowStatuses, workflowNames, workflowExecutionUuids,
-      labelAndKeyLabelValues, labelOrKeyLabelValues, excludeLabelAndValues, excludeLabelOrValues, submissionTimestampOption, startTimestampOption, endTimestampOption, includeSubworkflows, page, pageSize)
+      labelAndKeyLabelValues, labelOrKeyLabelValues, excludeLabelAndValues, excludeLabelOrValues, submissionTimestampOption, startTimestampOption, endTimestampOption, metadataArchiveStatus, includeSubworkflows, page, pageSize)
     runTransaction(action)
   }
 
@@ -352,10 +357,24 @@ class MetadataSlickDatabase(originalDatabaseConfig: Config)
                                       submissionTimestampOption: Option[Timestamp],
                                       startTimestampOption: Option[Timestamp],
                                       endTimestampOption: Option[Timestamp],
+                                      metadataArchiveStatus: Set[Option[String]],
                                       includeSubworkflows: Boolean)
                                      (implicit ec: ExecutionContext): Future[Int] = {
     val action = dataAccess.countWorkflowMetadataSummaryEntries(parentIdWorkflowMetadataKey, workflowStatuses, workflowNames, workflowExecutionUuids,
-      labelAndKeyLabelValues, labelOrKeyLabelValues, excludeLabelAndValues, excludeLabelOrValues, submissionTimestampOption, startTimestampOption, endTimestampOption, includeSubworkflows)
+      labelAndKeyLabelValues, labelOrKeyLabelValues, excludeLabelAndValues, excludeLabelOrValues, submissionTimestampOption, startTimestampOption, endTimestampOption, metadataArchiveStatus, includeSubworkflows)
     runTransaction(action)
   }
+
+  override def deleteNonLabelMetadataForWorkflow(rootWorkflowId: String)(implicit ec: ExecutionContext): Future[Int] = {
+    runTransaction(
+      dataAccess.metadataEntriesWithoutLabelsForRootWorkflowId(rootWorkflowId).delete
+    )
+  }
+
+  override def isRootWorkflow(rootWorkflowId: String)(implicit ec: ExecutionContext): Future[Option[Boolean]] = {
+    runTransaction(
+      dataAccess.isRootWorkflow(rootWorkflowId).result.headOption
+    )
+  }
+
 }
