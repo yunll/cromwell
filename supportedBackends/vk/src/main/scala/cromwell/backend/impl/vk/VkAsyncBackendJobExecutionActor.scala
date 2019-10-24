@@ -258,13 +258,21 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
         // If the process has already completed, there will be an existing rc file.
         returnCodeTmp.delete(true)
     }
-    makeRequest[CancelTaskResponse](HttpRequest(method = HttpMethods.DELETE,
-      headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
-      uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs/${job.jobId}")) onComplete {
-      case Success(_) => jobLogger.info("{} Aborted {}", tag: Any, job.jobId)
-      case Failure(ex) => jobLogger.warn("{} Failed to abort {}: {}", tag, job.jobId, ex.getMessage)
+    val delOptions = scala.collection.mutable.Map(
+      "kind"-> "DeleteOptions",
+      "apiVersion"-> "v1",
+      "propagationPolicy"-> "Background"
+    )
+    Marshal(delOptions).to[RequestEntity] map { entity => {
+        makeRequest[CancelTaskResponse](HttpRequest(method = HttpMethods.DELETE,
+          headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
+          uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs/${job.jobId}",
+          entity = entity)) onComplete {
+          case Success(_) => jobLogger.info("{} Aborted {}", tag: Any, job.jobId)
+          case Failure(ex) => jobLogger.warn("{} Failed to abort {}: {}", tag, job.jobId, ex.getMessage)
+        }
+      }
     }
-
     ()
   }
 
