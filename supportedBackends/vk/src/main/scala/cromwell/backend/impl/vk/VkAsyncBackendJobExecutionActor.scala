@@ -94,6 +94,9 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
 
   override lazy val jobTag: String = jobDescriptor.key.tag
 
+  override lazy val jobShell: String = workflowDescriptor.workflowOptions.getOrElse("system.job-shell", configurationDescriptor.globalConfig.getString("system.job-shell"))
+
+
   /**
     * Localizes the file.
     */
