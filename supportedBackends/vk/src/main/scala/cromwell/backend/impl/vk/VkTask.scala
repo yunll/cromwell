@@ -75,16 +75,32 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     configurationDescriptor.backendConfig.getString("root")
   }
 
+  var mounts = List[Mount]()
+  if(!pvc.equals("")) {
+    mounts = mounts :+ Mount(
+      name = pvc,
+      mountPath = mountPath
+    )
+  }
+  if(!runtimeAttributes.disk.isEmpty){
+    val evsPath = if(runtimeAttributes.mountPath.isEmpty){
+      "/tmp"
+    } else {
+      runtimeAttributes.mountPath.get
+    }
+    mounts = mounts :+ Mount(
+      name = "localevs",
+      mountPath = evsPath
+    )
+  }
+
   val containers = List(Container(
     name = fullyQualifiedTaskName,
     image = dockerImageUsed,
     command = List(jobShell, commandScriptPath),
     workingDir = runtimeAttributes.dockerWorkingDir,
     resources = resources,
-    volumeMounts = if(!pvc.equals("")) List(Mount(
-      name = pvc,
-      mountPath = mountPath
-    )) else Nil
+    volumeMounts = mounts
   ))
 
 
@@ -124,4 +140,5 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
   val jobMetadata = ObjectMeta(name=name,labels = labels)
 
   val job = Job(metadata=jobMetadata).withTemplate(templateSpec)
+
 }

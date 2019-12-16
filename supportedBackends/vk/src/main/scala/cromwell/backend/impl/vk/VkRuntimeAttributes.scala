@@ -18,6 +18,8 @@ case class VkRuntimeAttributes(continueOnReturnCode: ContinueOnReturnCode,
                                cpu: Option[Double],
                                memory: Option[MemorySize],
                                disk: Option[MemorySize],
+                               diskType: Option[String],
+                               mountPath: Option[String],
                                maxRetries: Option[Int],
                                gpuCount: Option[Int Refined Positive],
                                gpuType: Option[String])
@@ -39,6 +41,10 @@ object VkRuntimeAttributes {
 
   private def diskSizeValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[MemorySize] = MemoryValidation.optional(DiskSizeKey)
 
+  private def diskTypeValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[String] = new StringRuntimeAttributesValidation("diskType").optional
+
+  private def mountPathValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[String] = new StringRuntimeAttributesValidation("mountPath").optional
+
   private def memoryValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[MemorySize] = MemoryValidation.optional(RuntimeAttributesKeys.MemoryKey)
 
   private val dockerValidation: RuntimeAttributesValidation[String] = DockerValidation.instance
@@ -57,6 +63,8 @@ object VkRuntimeAttributes {
       dockerWorkingDirValidation,
       gpuCountValidation(backendRuntimeConfig),
       gpuTypeValidation(backendRuntimeConfig),
+      diskTypeValidation(backendRuntimeConfig),
+      mountPathValidation(backendRuntimeConfig)
     )
 
   def apply(validatedRuntimeAttributes: ValidatedRuntimeAttributes, backendRuntimeConfig: Option[Config]): VkRuntimeAttributes = {
@@ -67,6 +75,8 @@ object VkRuntimeAttributes {
     val gpuType: Option[String] = RuntimeAttributesValidation.extractOption(gpuTypeValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
     val memory: Option[MemorySize] = RuntimeAttributesValidation.extractOption(memoryValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
     val disk: Option[MemorySize] = RuntimeAttributesValidation.extractOption(diskSizeValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
+    val diskType: Option[String] = RuntimeAttributesValidation.extractOption(diskTypeValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
+    val mountPath: Option[String] = RuntimeAttributesValidation.extractOption(mountPathValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
     val failOnStderr: Boolean =
       RuntimeAttributesValidation.extract(failOnStderrValidation(backendRuntimeConfig), validatedRuntimeAttributes)
     val continueOnReturnCode: ContinueOnReturnCode =
@@ -80,6 +90,8 @@ object VkRuntimeAttributes {
       cpu,
       memory,
       disk,
+      diskType,
+      mountPath,
       maxRetries,
       gpuCount,
       gpuType

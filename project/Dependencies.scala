@@ -97,7 +97,7 @@ object Dependencies {
   private val workbenchGoogleV = "0.15-2fc79a3"
   private val workbenchModelV = "0.10-6800f3a"
   private val workbenchUtilV = "0.3-f3ce961"
-  private val skuberV = "2.2.0"
+  private val skuberV = "2.3.0"
 
   private val slf4jFacadeDependencies = List(
     "org.slf4j" % "slf4j-api" % slf4jV,
@@ -378,7 +378,7 @@ object Dependencies {
 
   val obsFileSystemDependencies = googleCloudDependencies ++ List(
     "com.github.pathikrit" %% "better-files" % betterFilesV,
-    "com.huaweicloud" % "esdk-obs-java" % "3.19.5",
+    "com.huawei.storage" % "esdk-obs-java" % "3.19.9",
   )
 
   val statsDProxyDependencies = List(

@@ -23,6 +23,8 @@ class VkRuntimeAttributesSpec extends WordSpecLike with Matchers {
     None,
     None,
     None,
+    None,
+    None,
   )
 
   val expectedDefaultsPlusUbuntuDocker = expectedDefaults.copy(dockerImage = "ubuntu:latest")
