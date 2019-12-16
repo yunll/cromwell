@@ -72,8 +72,7 @@ final case class ObsStorageConfiguration(endpoint: String,
   }
 
   def newObsClient() = {
-    val obsClient = new ObsClient(endpoint)
-    obsClient.refresh(accessKey,securityKey, "")
+    val obsClient = new ObsClient(accessKey, securityKey, endpoint)
     obsClient
   }
 }

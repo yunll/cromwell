@@ -139,8 +139,12 @@ object Dependencies {
 =======
   private val workbenchModelV = "0.10-6800f3a"
   private val workbenchUtilV = "0.3-f3ce961"
+<<<<<<< HEAD
   private val skuberV = "2.2.0"
 >>>>>>> obs
+=======
+  private val skuberV = "2.3.0"
+>>>>>>> 支持obs3.19.9,支持本地evs
 
   private val slf4jFacadeDependencies = List(
     "org.slf4j" % "slf4j-api" % slf4jV,
@@ -431,7 +435,7 @@ object Dependencies {
 
   val obsFileSystemDependencies = googleCloudDependencies ++ List(
     "com.github.pathikrit" %% "better-files" % betterFilesV,
-    "com.huaweicloud" % "esdk-obs-java" % "3.19.5",
+    "com.huawei.storage" % "esdk-obs-java" % "3.19.9",
   )
 
   val statsDProxyDependencies = List(

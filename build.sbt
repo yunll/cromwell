@@ -274,9 +274,7 @@ lazy val tesBackend = (project in backendRoot / "tes")
   .dependsOn(sfsBackend)
   .dependsOn(ftpFileSystem)
   .dependsOn(backend % "test->test")
-<<<<<<< HEAD
   .dependsOn(common % "test->test")
-=======
 
 lazy val vkBackend = (project in backendRoot / "vk")
   .withLibrarySettings("cromwell-vk-backend", vkBackendDependencies)
@@ -288,7 +286,6 @@ lazy val sparkBackend = (project in backendRoot / "spark")
   .withLibrarySettings("cromwell-spark-backend", sparkBackendDependencies)
   .dependsOn(sfsBackend)
   .dependsOn(backend % "test->test")
->>>>>>> obs
 
 lazy val bcsBackend = (project in backendRoot / "bcs")
   .withLibrarySettings("cromwell-bcs-backend", bcsBackendDependencies)
@@ -441,11 +438,8 @@ lazy val server = project
   .dependsOn(bcsBackend)
   .dependsOn(awsBackend)
   .dependsOn(tesBackend)
-<<<<<<< HEAD
-=======
   .dependsOn(vkBackend)
   .dependsOn(sparkBackend)
->>>>>>> obs
   .dependsOn(cromwellApiClient)
   .dependsOn(wdlDraft2LanguageFactory)
   .dependsOn(wdlDraft3LanguageFactory)

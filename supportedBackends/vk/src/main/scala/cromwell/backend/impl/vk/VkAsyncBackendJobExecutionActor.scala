@@ -11,8 +11,9 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
 import akka.http.scaladsl.model.{RequestEntity, _}
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Flow
 import akka.util.ByteString
-import com.google.gson.JsonObject
+import com.google.gson.{JsonObject, JsonParser}
 import cromwell.backend.BackendJobLifecycleActor
 import cromwell.backend.async.{AbortedExecutionHandle, ExecutionHandle, FailedNonRetryableExecutionHandle, FailedRetryableExecutionHandle, PendingExecutionHandle}
 import cromwell.backend.standard.{StandardAsyncExecutionActor, StandardAsyncExecutionActorParams, StandardAsyncJob}
@@ -217,7 +218,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
           ctr <- makeRequest[Job](HttpRequest(method = HttpMethods.POST,
             headers = List(RawHeader("X-Auth-Token", vkConfiguration.token.getValue())),
             uri = s"${apiServerUrl}/apis/batch/v1/namespaces/${namespace}/jobs",
-            entity = entity))
+            entity = transEntity(entity)))
         } yield {
           vkStatusManager.setStatus(workflowId, ctr)
           PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
@@ -228,6 +229,28 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
       }
     } catch {
       case t: Throwable => Future.successful(FailedNonRetryableExecutionHandle(t))
+    }
+  }
+
+  def transEntity(entity: RequestEntity): RequestEntity = {
+    if(runtimeAttributes.disk.isEmpty){
+      entity
+    } else {
+      val size = runtimeAttributes.disk.get.amount + "Gi"
+      val diskType = if(runtimeAttributes.diskType.isEmpty){
+        "sas"
+      }else {
+        runtimeAttributes.diskType.get.toLowerCase
+      }
+      val flow = Flow.fromFunction[ByteString, ByteString](source => {
+        val parser = new JsonParser()
+        val jsonObject = parser.parse(source.utf8String)
+        val volumes = jsonObject.getAsJsonObject.get("spec").getAsJsonObject.get("template").getAsJsonObject.get("spec").getAsJsonObject.get("volumes").getAsJsonArray
+        val flexVolume = s"""{"name":"localevs","flexVolume":{"driver":"huawei.com/fuxidisk","options":{"volumeType":${diskType},"volumeSize":${size}}}}"""
+        volumes.add(parser.parse(flexVolume))
+        ByteString.fromString(jsonObject.toString, "utf-8")
+      })
+      entity.transformDataBytes(flow)
     }
   }
 

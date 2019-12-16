@@ -36,7 +36,7 @@ final case class Token(accessKey: String, secretKey:String, region: String){
 
   var time = -1L
 
-  val overtime = 10*60*60*1000
+  val overtime = 5*60*1000
 
   def getValue(): String = {
     if(value.isEmpty || isExpire(time)){
