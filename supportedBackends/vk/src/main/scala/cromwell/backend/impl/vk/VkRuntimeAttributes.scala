@@ -1,5 +1,8 @@
 package cromwell.backend.impl.vk
 
+import cats.data.Validated._
+import cats.instances.list._
+import cats.syntax.traverse._
 import cats.syntax.validated._
 import com.typesafe.config.Config
 import common.validation.ErrorOr.ErrorOr
@@ -9,6 +12,7 @@ import eu.timepit.refined.api.Refined
 import eu.timepit.refined.numeric.Positive
 import wom.RuntimeAttributesKeys
 import wom.format.MemorySize
+import wom.types.{WomArrayType, WomStringType, WomType}
 import wom.values._
 
 case class VkRuntimeAttributes(continueOnReturnCode: ContinueOnReturnCode,
@@ -17,9 +21,7 @@ case class VkRuntimeAttributes(continueOnReturnCode: ContinueOnReturnCode,
                                failOnStderr: Boolean,
                                cpu: Option[Double],
                                memory: Option[MemorySize],
-                               disk: Option[MemorySize],
-                               diskType: Option[String],
-                               mountPath: Option[String],
+                               disks: Option[Seq[VkAttachedDisk]],
                                maxRetries: Option[Int],
                                gpuCount: Option[Int Refined Positive],
                                gpuType: Option[String])
@@ -27,23 +29,19 @@ case class VkRuntimeAttributes(continueOnReturnCode: ContinueOnReturnCode,
 object VkRuntimeAttributes {
 
   val DockerWorkingDirKey = "dockerWorkingDir"
-  val DiskSizeKey = "disk"
+  val DisksKey = "disks"
 
-  private def cpuValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[Double] = new FloatRuntimeAttributesValidation("cpu").optional
+  private def cpuValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[Double] = new FloatRuntimeAttributesValidation(RuntimeAttributesKeys.CpuKey).optional
 
-  private def gpuCountValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[Int Refined Positive] = new PositiveIntRuntimeAttributesValidation("gpuCount").optional
+  private def gpuCountValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[Int Refined Positive] = new PositiveIntRuntimeAttributesValidation(RuntimeAttributesKeys.GpuKey).optional
 
-  private def gpuTypeValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[String] = new StringRuntimeAttributesValidation("gpuType").optional
+  private def gpuTypeValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[String] = new StringRuntimeAttributesValidation(RuntimeAttributesKeys.GpuTypeKey).optional
 
-  private def failOnStderrValidation(runtimeConfig: Option[Config]) = FailOnStderrValidation.default(runtimeConfig)
+  private def failOnStderrValidation(runtimeConfig: Option[Config]) : RuntimeAttributesValidation[Boolean] = FailOnStderrValidation.default(runtimeConfig)
 
-  private def continueOnReturnCodeValidation(runtimeConfig: Option[Config]) = ContinueOnReturnCodeValidation.default(runtimeConfig)
+  private def continueOnReturnCodeValidation(runtimeConfig: Option[Config]) : RuntimeAttributesValidation[ContinueOnReturnCode] = ContinueOnReturnCodeValidation.default(runtimeConfig)
 
-  private def diskSizeValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[MemorySize] = MemoryValidation.optional(DiskSizeKey)
-
-  private def diskTypeValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[String] = new StringRuntimeAttributesValidation("diskType").optional
-
-  private def mountPathValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[String] = new StringRuntimeAttributesValidation("mountPath").optional
+  private def disksValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[Seq[VkAttachedDisk]] = DisksValidation.optional
 
   private def memoryValidation(runtimeConfig: Option[Config]): OptionalRuntimeAttributesValidation[MemorySize] = MemoryValidation.optional(RuntimeAttributesKeys.MemoryKey)
 
@@ -57,14 +55,12 @@ object VkRuntimeAttributes {
     StandardValidatedRuntimeAttributesBuilder.default(backendRuntimeConfig).withValidation(
       cpuValidation(backendRuntimeConfig),
       memoryValidation(backendRuntimeConfig),
-      diskSizeValidation(backendRuntimeConfig),
+      disksValidation(backendRuntimeConfig),
       maxRetriesValidation,
       dockerValidation,
       dockerWorkingDirValidation,
       gpuCountValidation(backendRuntimeConfig),
       gpuTypeValidation(backendRuntimeConfig),
-      diskTypeValidation(backendRuntimeConfig),
-      mountPathValidation(backendRuntimeConfig)
     )
 
   def apply(validatedRuntimeAttributes: ValidatedRuntimeAttributes, backendRuntimeConfig: Option[Config]): VkRuntimeAttributes = {
@@ -74,9 +70,7 @@ object VkRuntimeAttributes {
     val gpuCount: Option[Int Refined Positive] = RuntimeAttributesValidation.extractOption(gpuCountValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
     val gpuType: Option[String] = RuntimeAttributesValidation.extractOption(gpuTypeValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
     val memory: Option[MemorySize] = RuntimeAttributesValidation.extractOption(memoryValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
-    val disk: Option[MemorySize] = RuntimeAttributesValidation.extractOption(diskSizeValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
-    val diskType: Option[String] = RuntimeAttributesValidation.extractOption(diskTypeValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
-    val mountPath: Option[String] = RuntimeAttributesValidation.extractOption(mountPathValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
+    val disks: Option[Seq[VkAttachedDisk]]= RuntimeAttributesValidation.extractOption(disksValidation(backendRuntimeConfig).key, validatedRuntimeAttributes)
     val failOnStderr: Boolean =
       RuntimeAttributesValidation.extract(failOnStderrValidation(backendRuntimeConfig), validatedRuntimeAttributes)
     val continueOnReturnCode: ContinueOnReturnCode =
@@ -89,9 +83,7 @@ object VkRuntimeAttributes {
       failOnStderr,
       cpu,
       memory,
-      disk,
-      diskType,
-      mountPath,
+      disks,
       maxRetries,
       gpuCount,
       gpuType
@@ -111,3 +103,29 @@ class DockerWorkingDirValidation extends StringRuntimeAttributesValidation(VkRun
   }
 }
 
+object DisksValidation extends RuntimeAttributesValidation[Seq[VkAttachedDisk]] {
+  override def key: String = VkRuntimeAttributes.DisksKey
+
+  override def coercion: Traversable[WomType] = Set(WomStringType, WomArrayType(WomStringType))
+
+  override protected def validateValue: PartialFunction[WomValue, ErrorOr[Seq[VkAttachedDisk]]] = {
+    case WomString(value) => validateLocalDisks(value.split(",\\s*").toSeq)
+    case WomArray(womType, values) if womType.memberType == WomStringType =>
+      validateLocalDisks(values.map(_.valueString))
+  }
+
+  private def validateLocalDisks(disks: Seq[String]): ErrorOr[Seq[VkAttachedDisk]] = {
+    val diskNels: ErrorOr[Seq[VkAttachedDisk]] = disks.toList.traverse[ErrorOr, VkAttachedDisk](validateLocalDisk)
+    diskNels
+  }
+
+  private def validateLocalDisk(disk: String): ErrorOr[VkAttachedDisk] = {
+    VkAttachedDisk.parse(disk) match {
+      case scala.util.Success(attachedDisk) => attachedDisk.validNel
+      case scala.util.Failure(ex) => ex.getMessage.invalidNel
+    }
+  }
+
+  override protected def missingValueMessage: String =
+    s"Expecting $key runtime attribute to be a comma separated String or Array[String]"
+}
