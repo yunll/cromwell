@@ -16,7 +16,7 @@ object VkJobPaths {
 }
 
 case class VkJobPaths private[vk](override val workflowPaths: VkWorkflowPaths,
-                                   jobKey: BackendJobDescriptorKey) extends JobPaths {
+                                  jobKey: BackendJobDescriptorKey) extends JobPaths {
 
   import JobPaths._
 

@@ -233,21 +233,17 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   }
 
   def transEntity(entity: RequestEntity): RequestEntity = {
-    if(runtimeAttributes.disk.isEmpty){
+    if(runtimeAttributes.disks.isEmpty){
       entity
     } else {
-      val size = runtimeAttributes.disk.get.amount + "Gi"
-      val diskType = if(runtimeAttributes.diskType.isEmpty){
-        "sas"
-      }else {
-        runtimeAttributes.diskType.get.toLowerCase
-      }
       val flow = Flow.fromFunction[ByteString, ByteString](source => {
         val parser = new JsonParser()
         val jsonObject = parser.parse(source.utf8String)
         val volumes = jsonObject.getAsJsonObject.get("spec").getAsJsonObject.get("template").getAsJsonObject.get("spec").getAsJsonObject.get("volumes").getAsJsonArray
-        val flexVolume = s"""{"name":"localevs","flexVolume":{"driver":"huawei.com/fuxidisk","options":{"volumeType":${diskType},"volumeSize":${size}}}}"""
-        volumes.add(parser.parse(flexVolume))
+        for(disk <- runtimeAttributes.disks.get){
+          val flexVolume = s"""{"name":"${disk.name}","flexVolume":{"driver":"huawei.com/fuxidisk","options":{"volumeType":${disk.diskType.hwsTypeName},"volumeSize":${disk.sizeGb}Gi}}}"""
+          volumes.add(parser.parse(flexVolume))
+        }
         ByteString.fromString(jsonObject.toString, "utf-8")
       })
       entity.transformDataBytes(flow)

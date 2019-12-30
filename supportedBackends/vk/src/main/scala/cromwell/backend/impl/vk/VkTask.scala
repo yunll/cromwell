@@ -19,7 +19,7 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
   private val workflowDescriptor = jobDescriptor.workflowDescriptor
   private val workflowId = workflowDescriptor.id
   private val rootWorkflowId = workflowDescriptor.rootWorkflowId
-  private val fullyQualifiedTaskName = jobDescriptor.taskCall.localName.toLowerCase()
+  private val fullyQualifiedTaskName = jobDescriptor.taskCall.localName.replaceAll("_", "-").toLowerCase()
   private val index = jobDescriptor.key.index.getOrElse(0)
   private val attempt = jobDescriptor.key.attempt
   val name: String = fullyQualifiedTaskName + "-" + index + "-" + attempt + "-" + workflowId.shortString
@@ -27,24 +27,23 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
   // contains the script to be executed
   val commandScriptPath = vkPaths.callExecutionDockerRoot.resolve("script").toString
 
-
-  private val _ :: ram :: _ = Seq(runtimeAttributes.disk, runtimeAttributes.memory) map {
+  val ram :: _ = Seq(runtimeAttributes.memory) map {
     case Some(x) =>
       Option(x.to(MemoryUnit.GB).amount)
     case None =>
       None
   }
-
-  val cpu = runtimeAttributes.cpu.getOrElse(ram.getOrElse(2.0)/2).toString
+  val cpu = runtimeAttributes.cpu.getOrElse(ram.getOrElse(2.0)/2)
+  val memory = ram.getOrElse(cpu * 2)
   val resources = if(runtimeAttributes.gpuType.isEmpty && runtimeAttributes.gpuType.isEmpty){
     Option(Resource.Requirements(
       requests = Map(
-        "cpu" -> Quantity(cpu),
-        "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
+        "cpu" -> Quantity(cpu.toString),
+        "memory" -> Quantity(memory.toString+"Gi"),
       ),
       limits = Map(
-        "cpu" -> Quantity(cpu),
-        "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
+        "cpu" -> Quantity(cpu.toString),
+        "memory" -> Quantity(memory.toString+"Gi"),
       )
     ))
   } else {
@@ -52,13 +51,13 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     val gpuType = runtimeAttributes.gpuType.get
     Option(Resource.Requirements(
       requests = Map(
-        "cpu" -> Quantity(cpu),
-        "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
+        "cpu" -> Quantity(cpu.toString),
+        "memory" -> Quantity(memory.toString+"Gi"),
         gpuType -> Quantity(gpu),
       ),
       limits = Map(
-        "cpu" -> Quantity(cpu),
-        "memory" -> Quantity(ram.getOrElse(2).toString+"Gi"),
+        "cpu" -> Quantity(cpu.toString),
+        "memory" -> Quantity(memory.toString+"Gi"),
         gpuType -> Quantity(gpu),
       )
     ))
@@ -82,16 +81,13 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
       mountPath = mountPath
     )
   }
-  if(!runtimeAttributes.disk.isEmpty){
-    val evsPath = if(runtimeAttributes.mountPath.isEmpty){
-      "/tmp"
-    } else {
-      runtimeAttributes.mountPath.get
+  if(!runtimeAttributes.disks.isEmpty){
+    for(disk <- runtimeAttributes.disks.get){
+      mounts = mounts :+ Mount(
+        name = disk.name,
+        mountPath = disk.mountPoint.pathAsString
+      )
     }
-    mounts = mounts :+ Mount(
-      name = "localevs",
-      mountPath = evsPath
-    )
   }
 
   val containers = List(Container(

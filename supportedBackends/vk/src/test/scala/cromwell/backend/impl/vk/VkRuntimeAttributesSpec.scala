@@ -3,6 +3,7 @@ package cromwell.backend.impl.vk
 import cromwell.backend.validation.ContinueOnReturnCodeSet
 import cromwell.backend.{BackendConfigurationDescriptor, RuntimeAttributeDefinition, TestConfig}
 import cromwell.core.WorkflowOptions
+import cromwell.core.path.DefaultPathBuilder
 import org.scalatest.{Matchers, WordSpecLike}
 import org.slf4j.helpers.NOPLogger
 import spray.json._
@@ -17,8 +18,6 @@ class VkRuntimeAttributesSpec extends WordSpecLike with Matchers {
     "ubuntu:latest",
     None,
     false,
-    None,
-    None,
     None,
     None,
     None,
@@ -115,8 +114,8 @@ class VkRuntimeAttributesSpec extends WordSpecLike with Matchers {
     }
 
     "validate a valid disk entry" in {
-      val runtimeAttributes = Map("docker" -> WomString("ubuntu:latest"), "disk" -> WomString("1 GB"))
-      val expectedRuntimeAttributes = expectedDefaults.copy(disk = Option(MemorySize.parse("1 GB").get))
+      val runtimeAttributes = Map("docker" -> WomString("ubuntu:latest"), "disks" -> WomString("/tmp 10 SSD"))
+      val expectedRuntimeAttributes = expectedDefaults.copy(disks = Option(Seq(VkEmptyMountedDisk(diskType = VkDiskType.SSD, sizeGb = 10,mountPoint = DefaultPathBuilder.get("/tmp")).asInstanceOf[VkAttachedDisk])))
       assertSuccess(runtimeAttributes, expectedRuntimeAttributes)
     }
 
