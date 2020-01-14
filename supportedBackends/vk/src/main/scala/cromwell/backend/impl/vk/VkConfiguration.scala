@@ -40,7 +40,11 @@ final case class Token(accessKey: String, secretKey:String, region: String){
 
   def getValue(): String = {
     if(value.isEmpty || isExpire(time)){
-      value = initToken()
+      try {
+        value = initToken()
+      } catch {
+        case t: Throwable => println(t)
+      }
       time = new Date().getTime
     }
     value

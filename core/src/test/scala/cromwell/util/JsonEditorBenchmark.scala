@@ -4,12 +4,18 @@ import java.nio.file.{Files, Paths}
 
 import cats.data.NonEmptyList
 import cats.syntax.either._
+import cromwell.util.ErrorOrUtil._
 import cromwell.util.JsonEditor._
 import io.circe.Json
 import io.circe.parser.parse
 import org.scalameter.api._
 import org.scalameter.picklers.Implicits._
 
+// Run with:
+//   sbt "core/benchmark:testOnly cromwell.util.JsonEditorBenchmark"
+// Needs:
+//   * A file called bad.json and a file called bec.json in your pwd.
+//   * Each json must have at least an "id" field.
 object JsonEditorBenchmark extends Bench[Double] {
 
   /* Mock Json */
@@ -21,7 +27,7 @@ object JsonEditorBenchmark extends Bench[Double] {
   val excludeKeys = Map(14 -> "mt_", 32 -> "status")
 
   def loadJson(fileName: String) : String =  new String(Files.readAllBytes(Paths.get(
-    new java.io.File(".")
+    new java.io.File("./engine/src/test/resources")
     .getCanonicalPath, fileName)))
 
   val jsonStrs = jsonPool map { case (sz, fn) => sz → loadJson(fn) }
@@ -75,7 +81,7 @@ object JsonEditorBenchmark extends Bench[Double] {
         exec.benchRuns -> 1
       ) in { sz =>
         jsonTree(sz).map { json =>
-          updateLabels(json, Map(json.rootWorkflowId.get -> Map(("new", "label"))))
+          updateLabels(json, Map(json.workflowId.get -> Map(("new", "label"))))
         }.right.get // traversal
       }
     }

@@ -128,10 +128,10 @@ object WomtoolMain extends App {
   }
 
   def graph(workflowSourcePath: Path): Termination = {
-      WomGraphMaker.getBundle(workflowSourcePath).flatMap(_.toExecutableCallable).contextualizeErrors("create wom bundle") match {
-        case Right(executable) => SuccessfulTermination (new GraphPrint(executable).dotString)
-        case Left(errors) => UnsuccessfulTermination(errors.toList.mkString(System.lineSeparator, System.lineSeparator, System.lineSeparator))
-      }
+    WomGraphMaker.getBundle(workflowSourcePath).flatMap(_.toExecutableCallable).contextualizeErrors("create wom bundle") match {
+      case Right(executable) => SuccessfulTermination (new GraphPrint(executable).dotString)
+      case Left(errors) => UnsuccessfulTermination(errors.toList.mkString(System.lineSeparator, System.lineSeparator, System.lineSeparator))
+    }
   }
 
   def womGraph(workflowSourcePath: Path): Termination = {
