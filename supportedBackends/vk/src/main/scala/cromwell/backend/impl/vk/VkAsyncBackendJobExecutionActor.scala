@@ -224,11 +224,11 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
           PendingExecutionHandle(jobDescriptor, StandardAsyncJob(ctr.name), None, previousState = None)
         }
       } catch {
-        case ex: Exception => Future.successful(FailedRetryableExecutionHandle(ex))
+        case ex: Exception => Future.successful(FailedRetryableExecutionHandle(ex, kvPairsToSave = None))
         case t: Throwable => throw t
       }
     } catch {
-      case t: Throwable => Future.successful(FailedNonRetryableExecutionHandle(t))
+      case t: Throwable => Future.successful(FailedNonRetryableExecutionHandle(t, kvPairsToSave = None))
     }
   }
 
@@ -346,7 +346,7 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
   override def customPollStatusFailure: PartialFunction[(ExecutionHandle, Exception), ExecutionHandle] = {
     case (oldHandle: StandardAsyncPendingExecutionHandle@unchecked, e: Exception) =>
       jobLogger.error(s"$tag VK Job ${oldHandle.pendingJob.jobId} has not been found, failing call")
-      FailedNonRetryableExecutionHandle(e)
+      FailedNonRetryableExecutionHandle(e, kvPairsToSave = None)
   }
 
   override def handleExecutionFailure(status: StandardAsyncRunState, returnCode: Option[Int]) = {
