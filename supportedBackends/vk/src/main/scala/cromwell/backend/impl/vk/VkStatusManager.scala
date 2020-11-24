@@ -72,7 +72,7 @@ final case class VkStatusItem(workflowId: String, context: ActorContext, vkConfi
 
   private val namespace = vkConfiguration.namespace
   //private val apiServerUrl = s"https://cci.${vkConfiguration.region}.myhuaweicloud.com"
-  private val apiServerUrl = vkConfiguration.cciURL
+  private val apiServerUrl = vkConfiguration.k8sURL
   def getStatus(jobId: String): Option[JsonObject] = {
     val ret = statusMap.get(jobId)
     if(ret.isEmpty) {
