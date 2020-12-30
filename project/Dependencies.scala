@@ -133,18 +133,9 @@ object Dependencies {
   private val tikaV = "1.24.1"
   private val typesafeConfigV = "1.4.0"
   private val workbenchGoogleV = "0.15-2fc79a3"
-<<<<<<< HEAD
   private val workbenchModelV = "0.14-27810079-SNAP"
   private val workbenchUtilV = "0.6-27810079-SNAP"
-=======
-  private val workbenchModelV = "0.10-6800f3a"
-  private val workbenchUtilV = "0.3-f3ce961"
-<<<<<<< HEAD
-  private val skuberV = "2.2.0"
->>>>>>> obs
-=======
   private val skuberV = "2.3.0"
->>>>>>> 支持obs3.19.9,支持本地evs
 
   private val slf4jFacadeDependencies = List(
     "org.slf4j" % "slf4j-api" % slf4jV,
@@ -435,7 +426,6 @@ object Dependencies {
 
   val obsFileSystemDependencies = googleCloudDependencies ++ List(
     "com.github.pathikrit" %% "better-files" % betterFilesV,
-    //"com.huawei.storage" % "esdk-obs-java" % "3.19.9",
     "com.huaweicloud" % "esdk-obs-java" % "3.20.4.2"
   )
 
@@ -580,14 +570,11 @@ object Dependencies {
 
   val bcsBackendDependencies = commonDependencies ++ refinedTypeDependenciesList ++ aliyunBatchComputeDependencies
   val tesBackendDependencies = akkaHttpDependencies
-<<<<<<< HEAD
   val sfsBackendDependencies = List (
     "org.lz4" % "lz4-java" % lz4JavaV
   )
-=======
   val vkBackendDependencies = akkaHttpDependencies ++ k8sDependencies
   val sparkBackendDependencies = akkaHttpDependencies
->>>>>>> obs
 
   val testDependencies = List(
     "org.scalatest" %% "scalatest" % scalatestV,

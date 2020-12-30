@@ -4,7 +4,9 @@ import java.io.ByteArrayInputStream
 
 import com.obs.services.ObsClient
 import org.scalatest._
-import org.scalatest.mockito.MockitoSugar
+import org.scalatestplus.mockito.MockitoSugar
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 import scala.util.control.Breaks
 import scala.util.{Failure, Success, Try}
@@ -26,7 +28,7 @@ object ObsNioUtilSpec {
   )
 }
 
-trait ObsNioUtilSpec extends FlatSpecLike with MockitoSugar with Matchers {
+trait ObsNioUtilSpec extends AnyFlatSpecLike with MockitoSugar with Matchers {
 
   override def withFixture(test: NoArgTest): Outcome = {
     if (test.tags.contains(NeedAK.name)) {

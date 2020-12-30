@@ -245,13 +245,12 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
       entity
     } else {
       val flow = Flow.fromFunction[ByteString, ByteString](source => {
-        val parser = new JsonParser()
-        val jsonObject = parser.parse(source.utf8String)
+        val jsonObject = JsonParser.parseString(source.utf8String)
         val volumes = jsonObject.getAsJsonObject.get("spec").getAsJsonObject.get("template").getAsJsonObject.get("spec").getAsJsonObject.get("volumes").getAsJsonArray
         if(isCCI){
           for(disk <- runtimeAttributes.disks.get){
             val flexVolume = s"""{"name":"${disk.name}","flexVolume":{"driver":"huawei.com/fuxidisk","options":{"volumeType":${disk.diskType.hwsTypeName},"volumeSize":${disk.sizeGb}Gi}}}"""
-            volumes.add(parser.parse(flexVolume))
+            volumes.add(JsonParser.parseString(flexVolume))
           }
         }
         ByteString.fromString(jsonObject.toString, "utf-8")

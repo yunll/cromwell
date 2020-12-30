@@ -4,12 +4,12 @@ import java.math.BigInteger
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.{Date, TimeZone}
-
 import cats.effect.IO
-import com.google.gson
+import com.google.gson.JsonParser
 import cromwell.docker.DockerInfoActor._
 import cromwell.docker._
 import cromwell.docker.registryv2.DockerRegistryV2Abstract
+
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import org.apache.http.HttpResponse
@@ -41,7 +41,8 @@ class HwSWRRegistry(config: DockerRegistryConfig) extends DockerRegistryV2Abstra
 
   // Execute a request. No retries because they're expected to already be handled by the client
   def executeRequest[A](request: IO[Request[IO]], handler: Response[IO] => IO[A])(implicit client: Client[IO]): IO[A] = {
-    client.fetch[A](request)(handler)
+    // client.fetch[A](request)(handler)
+    request.flatMap(client.run(_).use[IO, A](handler))
   }
 
   override def accepts(dockerImageIdentifier: DockerImageIdentifier): Boolean = isValidSWRHost(dockerImageIdentifier.host)
@@ -143,7 +144,8 @@ class HwSWRRegistry(config: DockerRegistryConfig) extends DockerRegistryV2Abstra
   private def handleResponse(response: HttpResponse, dockerInfoContext: DockerInfoContext): IO[DockerInfoSuccessResponse] = {
     if(isSuccess(response.getStatusLine.getStatusCode)) {
       val ret = EntityUtils.toString(response.getEntity, "UTF-8")
-      val list = new gson.JsonParser().parse(ret).getAsJsonArray
+      //val list = new gson.JsonParser().parse(ret).getAsJsonArray
+      val list = JsonParser.parseString(ret).getAsJsonArray
       list.forEach(el => {
         val digest = el.getAsJsonObject.get("digest").getAsString.substring(HashAlg.length+1)
         val size = el.getAsJsonObject.get("size").getAsLong

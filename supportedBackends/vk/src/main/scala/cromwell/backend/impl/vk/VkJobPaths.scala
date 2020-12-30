@@ -8,22 +8,21 @@ import cromwell.core.path._
 object VkJobPaths {
   def apply(jobKey: BackendJobDescriptorKey,
   workflowDescriptor: BackendWorkflowDescriptor,
-  config: Config,
-  pathBuilders: List[PathBuilder] = WorkflowPaths.DefaultPathBuilders) = {
-    val workflowPaths = VkWorkflowPaths(workflowDescriptor, config, pathBuilders)
+  config: Config) = {
+    val workflowPaths = VkWorkflowPaths(workflowDescriptor, config, WorkflowPaths.DefaultPathBuilders)
     new VkJobPaths(workflowPaths, jobKey)
   }
 }
 
 case class VkJobPaths private[vk](override val workflowPaths: VkWorkflowPaths,
-                                  jobKey: BackendJobDescriptorKey) extends JobPaths {
+                                  jobKey: BackendJobDescriptorKey, override val isCallCacheCopyAttempt: Boolean = false) extends JobPaths {
 
   import JobPaths._
 
   override lazy val callExecutionRoot = {
     callRoot.resolve("execution")
   }
-  val callDockerRoot = callPathBuilder(workflowPaths.dockerWorkflowRoot, jobKey)
+  val callDockerRoot = callPathBuilder(workflowPaths.dockerWorkflowRoot, jobKey, isCallCacheCopyAttempt)
   val callExecutionDockerRoot = callDockerRoot.resolve("execution")
   val callInputsDockerRoot = callDockerRoot.resolve("inputs")
   val callInputsRoot = callRoot.resolve("inputs")
@@ -43,4 +42,6 @@ case class VkJobPaths private[vk](override val workflowPaths: VkWorkflowPaths,
   def containerExec(cwd: Path, path: String): String = {
     cwd.resolve(path).toString
   }
+
+  override def forCallCacheCopyAttempts: JobPaths = this.copy(isCallCacheCopyAttempt = true)
 }

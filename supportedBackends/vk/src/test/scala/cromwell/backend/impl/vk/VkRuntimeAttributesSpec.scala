@@ -4,14 +4,15 @@ import cromwell.backend.validation.ContinueOnReturnCodeSet
 import cromwell.backend.{BackendConfigurationDescriptor, RuntimeAttributeDefinition, TestConfig}
 import cromwell.core.WorkflowOptions
 import cromwell.core.path.DefaultPathBuilder
-import org.scalatest.{Matchers, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.helpers.NOPLogger
 import spray.json._
 import wom.format.MemorySize
 import wom.types._
 import wom.values._
 
-class VkRuntimeAttributesSpec extends WordSpecLike with Matchers {
+class VkRuntimeAttributesSpec extends AnyWordSpecLike with Matchers {
 
   val expectedDefaults = new VkRuntimeAttributes(
     ContinueOnReturnCodeSet(Set(0)),

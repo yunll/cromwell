@@ -2,10 +2,12 @@ package cromwell.filesystems.obs
 
 import cromwell.core.TestKitSuite
 import cromwell.filesystems.obs.nio.ObsNioUtilSpec
-import org.scalatest.{BeforeAndAfter, FlatSpecLike, Matchers}
+import org.scalatest.BeforeAndAfter
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.TryValues._
 
-class ObsPathBuilderSpec extends TestKitSuite with FlatSpecLike with Matchers with ObsNioUtilSpec with BeforeAndAfter {
+class ObsPathBuilderSpec extends TestKitSuite with AnyFlatSpecLike with Matchers with ObsNioUtilSpec with BeforeAndAfter {
 
   behavior of s"ObsPathBuilerSpec"
   val testPathBuiler = ObsPathBuilder(mockObsConf)

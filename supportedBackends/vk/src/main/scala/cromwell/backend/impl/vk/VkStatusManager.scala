@@ -64,7 +64,7 @@ final case class VkStatusItem(workflowId: String, context: ActorContext, vkConfi
   protected implicit lazy val ec: ExecutionContextExecutor = context.dispatcher
   protected implicit val materializer = ActorMaterializer()
 
-  private val parser = new JsonParser()
+  // private val parser = new JsonParser()
   private val gson = new Gson()
   var statusMap = TrieMap[String, JsonObject]()
   val tempMap = TrieMap[String, JsonObject]()
@@ -129,7 +129,7 @@ final case class VkStatusItem(workflowId: String, context: ActorContext, vkConfi
         } else {
           response.entity.withoutSizeLimit.toStrict(100000.millis).map[JsonObject] {
             res => {
-              parser.parse(res.data.utf8String).getAsJsonObject
+              JsonParser.parseString(res.data.utf8String).getAsJsonObject
             }
           }
           //        Unmarshal(response.entity.withoutSizeLimit()).to[A]
