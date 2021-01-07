@@ -17,6 +17,7 @@ import cromwell.docker.registryv2.flows.alibabacloudcrregistry._
 import cromwell.docker.registryv2.DockerRegistryV2Abstract
 import cromwell.docker.registryv2.flows.dockerhub.DockerHubRegistry
 import cromwell.docker.registryv2.flows.gcr.GcrRegistry
+import cromwell.docker.registryv2.flows.hwswr.HwSWRRegistry
 import cromwell.docker.registryv2.flows.quay.QuayRegistry
 import cromwell.util.GracefulShutdownHelper.ShutdownCommand
 import fs2.Pipe
@@ -240,7 +241,8 @@ object DockerInfoActor {
       ("dockerhub", { c: DockerRegistryConfig => new DockerHubRegistry(c) }),
       ("gcr", gcrConstructor),
       ("quay", { c: DockerRegistryConfig => new QuayRegistry(c) }),
-      ("alibabacloudcr", {c: DockerRegistryConfig => new AlibabaCloudCRRegistry(c)})
+      ("alibabacloudcr", {c: DockerRegistryConfig => new AlibabaCloudCRRegistry(c)}),
+      ("hwswr", {c: DockerRegistryConfig => new HwSWRRegistry(c)})
     ).traverse[ErrorOr, DockerRegistry]({
       case (configPath, constructor) => DockerRegistryConfig.fromConfig(config.as[Config](configPath)).map(constructor)
     }).unsafe("Docker registry configuration")
