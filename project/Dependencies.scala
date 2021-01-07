@@ -135,6 +135,7 @@ object Dependencies {
   private val workbenchGoogleV = "0.15-2fc79a3"
   private val workbenchModelV = "0.14-27810079-SNAP"
   private val workbenchUtilV = "0.6-27810079-SNAP"
+  private val skuberV = "2.3.0"
 
   private val slf4jFacadeDependencies = List(
     "org.slf4j" % "slf4j-api" % slf4jV,
@@ -563,11 +564,17 @@ object Dependencies {
     "co.fs2" %% "fs2-io" % fs2V
   )
 
+  val k8sDependencies = List(
+    "io.skuber" %% "skuber" % skuberV,
+  )
+
   val bcsBackendDependencies = commonDependencies ++ refinedTypeDependenciesList ++ aliyunBatchComputeDependencies
   val tesBackendDependencies = akkaHttpDependencies
   val sfsBackendDependencies = List (
     "org.lz4" % "lz4-java" % lz4JavaV
   )
+
+  val vkBackendDependencies = akkaHttpDependencies ++ k8sDependencies
 
   val testDependencies = List(
     "org.scalatest" %% "scalatest" % scalatestV,
@@ -629,6 +636,7 @@ object Dependencies {
       spiUtilDependencies ++
       statsDProxyDependencies ++
       tesBackendDependencies ++
+      vkBackendDependencies ++
       wdlDependencies ++
       wes2cromwellDependencies ++
       womDependencies ++
@@ -724,5 +732,6 @@ object Dependencies {
       googleHttpClientDependencies ++
       nettyDependencyOverrides ++
       rdf4jDependencyOverrides ++
-      grpcDependencyOverrides
+      grpcDependencyOverrides ++
+      k8sDependencies
 }
