@@ -423,6 +423,11 @@ object Dependencies {
     "com.github.pathikrit" %% "better-files" % betterFilesV
   )
 
+  val obsFileSystemDependencies = googleCloudDependencies ++ List(
+    "com.github.pathikrit" %% "better-files" % betterFilesV,
+    "com.huaweicloud" % "esdk-obs-java" % "3.20.4.2"
+  )
+
   val statsDProxyDependencies = List(
     "co.fs2" %% "fs2-io" % fs2VStatsDProxy,
     "com.iheart" %% "ficus" % ficusV,
@@ -616,6 +621,7 @@ object Dependencies {
       implFtpDependencies ++
       languageFactoryDependencies ++
       ossFileSystemDependencies ++
+      obsFileSystemDependencies ++
       perfDependencies ++
       serverDependencies ++
       sfsBackendDependencies ++
