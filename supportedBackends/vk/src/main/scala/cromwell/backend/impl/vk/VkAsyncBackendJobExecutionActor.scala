@@ -1,11 +1,12 @@
 package cromwell.backend.impl.vk
 
+import akka.actor.ActorSystem
+
 import java.io.FileNotFoundException
 import java.nio.file.FileAlreadyExistsException
 import java.util.concurrent.ExecutionException
-
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.{Http, HttpsConnectionContext}
+import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshalling.Marshal
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
@@ -33,8 +34,6 @@ import wdl.draft2.model.FullyQualifiedName
 import skuber.json.PlayJsonSupportForAkkaHttp._
 import cromwell.backend.impl.vk.VkResponseJsonFormatter._
 import cromwell.core.CromwellFatalExceptionMarker
-import javax.net.ssl.{KeyManager, SSLContext, X509TrustManager}
-import java.security.cert.X509Certificate
 
 import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import org.apache.commons.lang3.exception.ExceptionUtils
@@ -61,6 +60,13 @@ case object Cancelled extends VkRunStatus {
 
 object VkAsyncBackendJobExecutionActor {
   val JobIdKey = "vk_job_id"
+  val badSslConfig: AkkaSSLConfig = AkkaSSLConfig(ActorSystem.apply()).mapSettings(s =>
+    s.withLoose(
+      s.loose
+        .withDisableHostnameVerification(true)
+    )
+  )
+  val badCtx = Http(ActorSystem.apply()).createClientHttpsContext(badSslConfig)
 }
 
 class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsyncExecutionActorParams)
@@ -427,40 +433,12 @@ class VkAsyncBackendJobExecutionActor(override val standardParams: StandardAsync
     }
   }
 
-  private val trustfulSslContext: SSLContext = {
-    object NoCheckX509TrustManager extends X509TrustManager {
-      override def checkClientTrusted(chain: Array[X509Certificate], authType: String) = ()
-      override def checkServerTrusted(chain: Array[X509Certificate], authType: String) = ()
-      override def getAcceptedIssuers = Array[X509Certificate]()
-    }
-    val context = SSLContext.getInstance("TLS")
-    context.init(Array[KeyManager](), Array(NoCheckX509TrustManager), null)
-    context
-  }
-
   private def makeRequest[A](request: HttpRequest)(implicit um: Unmarshaller[ResponseEntity, A]): Future[A] = {
     for {
       response <- withRetry(() => {
 
-        val badSslConfig: AkkaSSLConfig = AkkaSSLConfig().mapSettings(s =>
-          s.withLoose(
-            s.loose
-              .withAcceptAnyCertificate(true)
-              .withDisableHostnameVerification(true)
-          )
-        )
-        val http = Http()
-        val ctx = http.createClientHttpsContext(badSslConfig)
-        val httpsCtx = new HttpsConnectionContext(
-          trustfulSslContext,
-          ctx.sslConfig,
-          ctx.enabledCipherSuites,
-          ctx.enabledProtocols,
-          ctx.clientAuth,
-          ctx.sslParameters
-        )
         val rsp = if (vkConfiguration.region == "cn-north-7"){
-          Await.result(Http().singleRequest(request, httpsCtx), Duration.Inf)
+          Await.result(Http().singleRequest(request, VkAsyncBackendJobExecutionActor.badCtx), Duration.Inf)
         }else{
           Await.result(Http().singleRequest(request), Duration.Inf)
         }
