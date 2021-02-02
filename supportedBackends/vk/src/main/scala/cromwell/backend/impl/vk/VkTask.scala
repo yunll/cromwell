@@ -124,13 +124,16 @@ final case class VkTask(jobDescriptor: BackendJobDescriptor,
     volumeMounts = mounts
   ))
 
-
+  var imagePullSecretsName = "imagepull-secret"
+  if (!isCCI) {
+    imagePullSecretsName = "default-secret"
+  }
   val podSpec = Pod.Spec(
     containers = containers,
     volumes = if(!pvcStr.equals("")) volumes else Nil,
     restartPolicy = RestartPolicy.OnFailure,
     imagePullSecrets = List(LocalObjectReference(
-      name = "imagepull-secret"
+      name = imagePullSecretsName
     ))
   )
 
